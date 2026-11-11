@@ -44,7 +44,7 @@ When you have dozens of LoRAs, their trigger words and prompt variants end up sc
 从源码构建：
 
 ```bash
-git clone <repo>
+git clone https://github.com/EasyRain/lora-manager.git
 cd lora-manager
 dotnet publish shell -c Release -r win-x64 --self-contained false -o out
 ```
