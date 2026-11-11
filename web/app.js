@@ -300,6 +300,36 @@ async function deleteFolder(rel) {
   }
 }
 
+/* ---------------- 删除 LoRA 文件 / 导入 ---------------- */
+let importDir = '';
+
+async function deleteLoraFile(rel) {
+  const name = nameOf(rel);
+  if (!confirm(t('删除 LoRA 文件「') + name + t('」？会进回收站（可恢复）；这张卡片会变成不绑定文件的文本卡，提示词保留。'))) return;
+  try {
+    await postJson('/api/delete', { path: rel });
+    const card = cardByPath(rel);
+    if (card) {
+      card.path = '';
+      card.dir = parentOf(rel);
+    }
+    lib.hidden = lib.hidden.filter((x) => x !== rel);
+    sel = sel.filter((k) => !k.startsWith(card ? card.id : '\u0000'));
+    touch();
+    await loadTree();
+    render();
+    toast(t('已删除 ') + name);
+  } catch (e) {
+    toast(t('删除失败：') + e.message, true);
+  }
+}
+
+function importLora(dir) {
+  importDir = dir === undefined ? curDir : dir;
+  $('#file-lora').value = '';
+  $('#file-lora').click();
+}
+
 /* ---------------- 拖放上传 ---------------- */
 const LORA_EXT = /\.(safetensors|sft|ckpt|pt|pth|bin)$/i;
 
@@ -1115,6 +1145,7 @@ function bind() {
         { label: t('重命名 LoRA 文件…'), show: !!c.path, run: () => renamePath(c.path) },
         { label: t('隐藏这个 LoRA'), show: !!c.path, run: () => hidePath(c.path) },
         { label: t('在资源管理器中显示'), show: !!c.path, run: () => revealPath(c.path) },
+        { label: t('删除 LoRA 文件…'), danger: true, show: !!c.path, run: () => deleteLoraFile(c.path) },
         { sep: true, show: !!c.path },
         { label: t('删除大卡片'), danger: true, run: () => { lib.cards = lib.cards.filter((x) => x.id !== c.id); sel = sel.filter((k) => k.split('|')[0] !== c.id); touch(); render(); } },
       ]);
@@ -1128,6 +1159,8 @@ function bind() {
         { label: t('重命名 LoRA 文件…'), run: () => renamePath(rel) },
         { label: t('隐藏这个 LoRA'), show: !isHidden(rel), run: () => hidePath(rel) },
         { label: t('在资源管理器中显示'), run: () => revealPath(rel) },
+        { sep: true },
+        { label: t('删除 LoRA 文件…'), danger: true, run: () => deleteLoraFile(rel) },
       ]);
     }
     // 没命中卡片：不处理，冒泡给空白菜单
@@ -1142,6 +1175,7 @@ function bind() {
       { sep: true },
       { label: t('重命名文件夹…'), run: () => renamePath(rel) },
       { label: t('新建子文件夹…'), run: () => { curDir = rel; newFolder(); } },
+      { label: t('导入 LoRA 到这里…'), run: () => importLora(rel) },
       { label: t('删除文件夹'), danger: true, run: () => deleteFolder(rel) },
       { sep: true },
       { label: t('在资源管理器中显示'), run: () => revealPath(rel) },
@@ -1164,6 +1198,7 @@ function bind() {
     showMenu(e, [
       { label: t('新建大卡片'), run: () => openCard(null) },
       { label: t('新建文件夹…'), run: () => newFolder() },
+      { label: t('导入 LoRA 文件…'), run: () => importLora(curDir) },
       { sep: true },
       { label: t('按规则排序（有提示词的在前）'), run: () => autoSort() },
       { sep: true },
@@ -1389,6 +1424,11 @@ function bind() {
   });
   $('#ed-img').addEventListener('click', () => $('#file').click());
   $('#file').addEventListener('change', (e) => uploadImage(e.target.files[0]));
+  $('#file-lora').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length) await uploadFiles(files, importDir);
+  });
   $('#ed-rmimg').addEventListener('click', () => setThumb(''));
   $('#ed-body').addEventListener('paste', (e) => {
     const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith('image/'));

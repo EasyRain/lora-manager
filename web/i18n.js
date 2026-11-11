@@ -185,6 +185,15 @@ const I18N = {
     '重命名 LoRA 文件（不含扩展名）：': 'Rename LoRA file (without extension):',
     '(无标题)': '(untitled)',
 
+    '删除 LoRA 文件…': 'Delete LoRA file…',
+    '导入 LoRA 文件…': 'Import LoRA file…',
+    '导入 LoRA 到这里…': 'Import LoRA here…',
+    '删除 LoRA 文件「': 'Delete LoRA file “',
+    '」？会进回收站（可恢复）；这张卡片会变成不绑定文件的文本卡，提示词保留。':
+      '”? It goes to the Recycle Bin (recoverable). The card becomes a text-only card and keeps its entries.',
+    '已删除 ': 'Deleted ',
+    '删除失败：': 'Delete failed: ',
+
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

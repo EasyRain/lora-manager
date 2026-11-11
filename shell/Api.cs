@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.VisualBasic.FileIO;
 using System.Net.Sockets;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -67,7 +68,7 @@ public static class Api
                     try
                     {
                         var p = Path.GetFullPath(Path.Combine(d, r));
-                        if (Directory.Exists(p) && Directory.EnumerateFiles(p, "*.safetensors", SearchOption.AllDirectories).Any())
+                        if (Directory.Exists(p) && Directory.EnumerateFiles(p, "*.safetensors", System.IO.SearchOption.AllDirectories).Any())
                             return p;
                     }
                     catch { }
@@ -381,6 +382,31 @@ public static class Api
                     await ctx.Request.Body.CopyToAsync(fs);
 
                 return Results.Json(new { ok = true, rel = Rel(root, target) });
+            }
+            catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
+        });
+
+        app.MapPost("/api/delete", async (HttpContext ctx) =>
+        {
+            var root = ReadRoot();
+            try
+            {
+                var body = await JsonNode.ParseAsync(ctx.Request.Body);
+                var rel = body?["path"]?.GetValue<string>() ?? "";
+                var full = SafeFull(root, rel);
+                if (full is null || full.Length == 0) return Results.Json(new { error = "越界路径" }, statusCode: 400);
+                if (!File.Exists(full)) return Results.Json(new { error = "文件不存在" }, statusCode: 404);
+
+                try
+                {
+                    // 进回收站，删错了还能捞回来
+                    FileSystem.DeleteFile(full, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+                }
+                catch
+                {
+                    File.Delete(full);
+                }
+                return Results.Json(new { ok = true, rel = Rel(root, full) });
             }
             catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
         });
