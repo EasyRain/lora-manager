@@ -8,6 +8,10 @@ A **LoRA file manager + prompt notebook** for ComfyUI: browse your real folder t
 
 ![English UI](docs/shot-en.png)
 
+双击卡片按 markdown 预览 / Double-click a card for a rendered preview:
+
+![markdown 预览](docs/shot-preview.png)
+
 ---
 
 ## 它解决的问题 / Why
