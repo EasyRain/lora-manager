@@ -15,3 +15,6 @@ shell.log
 # 临时
 __pycache__/
 *.pyc
+
+# 发布产物
+release/

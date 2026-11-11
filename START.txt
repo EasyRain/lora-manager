@@ -1,0 +1,33 @@
+LoRA 管理器 / LoRA Manager
+=====================================
+
+怎么运行 / How to run
+--------------------
+1. 需要 .NET 10 桌面运行时（Desktop Runtime）：
+   https://dotnet.microsoft.com/download/dotnet/10.0
+   Win10/11 自带 WebView2 运行时，一般不用另装。
+
+2. 双击「LoRA管理器.exe」。
+   第一次运行点顶栏「根目录」，选你的 ComfyUI/models/loras。
+
+3. 第一次运行 Windows 可能弹「Windows 已保护你的电脑」：
+   点「更多信息」→「仍要运行」。
+
+   The release is unsigned. On first launch SmartScreen may warn —
+   click "More info" → "Run anyway".
+
+数据 / Data
+-----------
+所有内容都在 exe 旁边的 data\ 文件夹里：
+  data\library.json    卡片和提示词
+  data\images\         配图
+备份就是复制整个 data 文件夹。
+
+注意 / Caveats
+--------------
+· 重命名和移动会真的改动磁盘上的 LoRA 文件，旧工作流里的路径会失效，
+  而且 ComfyUI 要重启一次才能看到新路径。
+· 「隐藏」不会动文件，只是不在这个工具里显示。
+· 只支持 Windows。
+
+完整说明 / Full docs: README.md

@@ -108,6 +108,16 @@ library.json.bak       # 每次保存自动留的上一版
 - 只支持 Windows（用了 WinForms + WebView2）。
 - 界面中英双语，但**你自己的卡片内容不会被翻译**。
 
+## 未签名说明 / Unsigned build
+
+发布包**没有做代码签名**（个人项目没买证书）。所以第一次运行时 Windows SmartScreen 会拦一下：
+
+> Windows 已保护你的电脑 → **更多信息** → **仍然运行**
+
+点过一次之后同一台机器不再提示。嫌麻烦可以自己核对 SHA256（写在每个 Release 的说明里），或者干脆从源码自己编译。
+
+The release is **not code-signed**. SmartScreen will warn on first launch — click *More info → Run anyway*. Verify the SHA256 in the release notes if you want to be sure.
+
 ## 从哪来 / Origin
 
 最初是为了把 ComfyUI 工作流里十几个便笺（约 3 万字）抽成可检索的结构，后来一路长成了完整的 LoRA 管理器。
