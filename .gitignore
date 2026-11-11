@@ -1,0 +1,17 @@
+# 构建产物
+bin/
+obj/
+out/
+*.user
+*.suo
+
+# 运行时数据（每个人的 LoRA 库都在这里，不进仓库）
+data/
+webview-data/
+shell.log
+*.bak
+*.beforeclean
+
+# 临时
+__pycache__/
+*.pyc
