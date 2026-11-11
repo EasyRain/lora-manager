@@ -5,6 +5,7 @@
 const I18N = {
   en: {
     // ---- 顶栏 ----
+    'LoRA 管理器': 'LoRA Manager',
     '搜索标题 / 正文…': 'Search title / content…',
     '在资源管理器里打开': 'Open data folder',
     '数据': 'Data',
@@ -224,5 +225,6 @@ function setLang(lang) {
   LANG = lang === 'en' ? 'en' : 'zh';
   localStorage.setItem('lora.lang', LANG);
   document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-CN';
+  document.title = t('LoRA 管理器');   // WebView2 会把它冒到窗口标题上
   applyStaticI18n();
 }

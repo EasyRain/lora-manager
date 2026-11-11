@@ -51,6 +51,13 @@ public class MainForm : Form
             var env = await CoreWebView2Environment.CreateAsync(null, udf);
             await _web.EnsureCoreWebView2Async(env);
 
+            // 页面标题变了（切语言），窗口标题也跟着变
+            _web.CoreWebView2.DocumentTitleChanged += (_, _) =>
+            {
+                var docTitle = _web.CoreWebView2.DocumentTitle;
+                if (!string.IsNullOrWhiteSpace(docTitle)) Text = docTitle;
+            };
+
             var s = _web.CoreWebView2.Settings;
             s.IsStatusBarEnabled = false;
             s.AreDevToolsEnabled = true;
