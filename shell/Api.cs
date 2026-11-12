@@ -158,7 +158,14 @@ public static class Api
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
-        builder.WebHost.ConfigureKestrel(o => o.Listen(IPAddress.Loopback, port));
+        builder.WebHost.ConfigureKestrel(o =>
+        {
+            // 默认只有 30MB，LoRA 文件动不动上百兆，必须放开
+            o.Limits.MaxRequestBodySize = 8L * 1024 * 1024 * 1024;
+            o.Limits.MinRequestBodyDataRate = null;
+            o.Limits.MinResponseDataRate = null;
+            o.Listen(IPAddress.Loopback, port);
+        });
 
         var app = builder.Build();
 
@@ -378,8 +385,17 @@ public static class Api
                 var target = Path.Combine(dirFull, name);
                 if (File.Exists(target)) return Results.Json(new { error = "这个文件夹里已经有 " + name }, statusCode: 409);
 
-                using (var fs = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20))
-                    await ctx.Request.Body.CopyToAsync(fs);
+                try
+                {
+                    using (var fs = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20))
+                        await ctx.Request.Body.CopyToAsync(fs);
+                }
+                catch
+                {
+                    // 传到一半断了：把不完整的文件清掉，免得目录里留个 0 字节的假 LoRA
+                    try { if (File.Exists(target)) File.Delete(target); } catch { }
+                    throw;
+                }
 
                 return Results.Json(new { ok = true, rel = Rel(root, target) });
             }
