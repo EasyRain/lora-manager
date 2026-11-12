@@ -1158,10 +1158,12 @@ function bind() {
     if (card) {
       const c = lib.cards.find((x) => x.id === card.dataset.card);
       if (!c) return;
+      // 顺序：新建 -> 查看/编辑 -> 文件操作 -> 删除，和空卡片的菜单对齐
       return showMenu(e, [
+        { label: t('新建小卡片'), run: () => openChild(c.id, null) },
+        { sep: true },
         { label: t('预览'), run: () => openPreview(c.id, null) },
         { label: t('编辑大卡片'), run: () => openCard(c.id) },
-        { label: t('新建小卡片'), run: () => openChild(c.id, null) },
         { label: t('复制全部提示词'), run: () => copyText(bodiesOf(c.id).join(', ')) },
         { sep: true },
         { label: t('移动到…'), run: () => { sel = [c.id]; renderSel(); openMove(); } },
