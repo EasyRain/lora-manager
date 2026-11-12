@@ -154,6 +154,19 @@ public static class Api
         }
     }
 
+    static async Task<string> Sha256File(string path)
+    {
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20,
+                                      FileOptions.SequentialScan);
+        var buf = new byte[1 << 20];
+        int n;
+        while ((n = await fs.ReadAsync(buf)) > 0)
+            sha.TransformBlock(buf, 0, n, null, 0);
+        sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
+    }
+
     public static WebApplication Build(int port)
     {
         var builder = WebApplication.CreateSlimBuilder();
@@ -425,6 +438,47 @@ public static class Api
                 return Results.Json(new { ok = true, rel = Rel(root, full) });
             }
             catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
+        });
+
+        app.MapPost("/api/civitai/lookup", async (HttpContext ctx) =>
+        {
+            var root = ReadRoot();
+            try
+            {
+                var body = await JsonNode.ParseAsync(ctx.Request.Body);
+                var rel = body?["path"]?.GetValue<string>() ?? "";
+                var full = SafeFull(root, rel);
+                if (full is null) return Results.Json(new { error = "越界路径" }, statusCode: 400);
+                if (!File.Exists(full)) return Results.Json(new { error = "文件不存在" }, statusCode: 404);
+
+                var hash = await Sha256File(full);
+
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("lora-manager/0.1");
+                http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+
+                using var resp = await http.GetAsync("https://civitai.com/api/v1/model-versions/by-hash/" + hash);
+                if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    return Results.Json(new { found = false, hash });
+                if (!resp.IsSuccessStatusCode)
+                    return Results.Json(new { error = "Civitai 返回 " + (int)resp.StatusCode, hash }, statusCode: 502);
+
+                var doc = JsonNode.Parse(await resp.Content.ReadAsStringAsync());
+                var versionId = doc?["id"]?.GetValue<long>() ?? 0;
+                var modelId = doc?["modelId"]?.GetValue<long>() ?? 0;
+                if (modelId == 0) return Results.Json(new { found = false, hash });
+
+                var url = "https://civitai.com/models/" + modelId + "?modelVersionId=" + versionId;
+                return Results.Json(new { found = true, hash, modelId, versionId, url });
+            }
+            catch (TaskCanceledException)
+            {
+                return Results.Json(new { error = "连不上 Civitai（超时，检查代理）" }, statusCode: 504);
+            }
+            catch (Exception e)
+            {
+                return Results.Json(new { error = e.Message }, statusCode: 500);
+            }
         });
 
         app.MapPost("/api/reveal-file", async (HttpContext ctx) =>

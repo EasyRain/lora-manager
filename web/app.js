@@ -300,6 +300,31 @@ async function deleteFolder(rel) {
   }
 }
 
+/* ---------------- 查 Civitai 页面地址 ---------------- */
+function openUrl(url) {
+  // 交给 WebView2 的 NewWindowRequested，会落到系统浏览器
+  window.open(url, '_blank');
+}
+
+async function openCivitai(rel, card) {
+  if (!rel) return;
+  if (card && card.civitai) return openUrl(card.civitai);
+  toast(t('正在查 Civitai…'));
+  try {
+    const d = await postJson('/api/civitai/lookup', { path: rel });
+    if (!d.found) return toast(t('Civitai 上没找到这个模型（可能已下架，或不是从 Civitai 下的）'), true);
+    if (card) {
+      card.civitai = d.url;
+      if (d.hash) card.h = d.hash;
+      touch();
+    }
+    openUrl(d.url);
+    toast(t('已打开模型页'));
+  } catch (e) {
+    toast(t('查询失败：') + e.message, true);
+  }
+}
+
 /* ---------------- 删除 LoRA 文件 / 导入 ---------------- */
 let importDir = '';
 
@@ -1170,6 +1195,7 @@ function bind() {
         { label: t('重命名 LoRA 文件…'), show: !!c.path, run: () => renamePath(c.path) },
         { label: t('隐藏这个 LoRA'), show: !!c.path, run: () => hidePath(c.path) },
         { label: t('在资源管理器中显示'), show: !!c.path, run: () => revealPath(c.path) },
+        { label: t('在 Civitai 打开'), show: !!c.path, run: () => openCivitai(c.path, c) },
         { label: t('删除 LoRA 文件…'), danger: true, show: !!c.path, run: () => deleteLoraFile(c.path) },
         { sep: true, show: !!c.path },
         { label: t('删除大卡片'), danger: true, run: () => { lib.cards = lib.cards.filter((x) => x.id !== c.id); sel = sel.filter((k) => k.split('|')[0] !== c.id); touch(); render(); } },
@@ -1187,6 +1213,7 @@ function bind() {
         { label: t('重命名 LoRA 文件…'), run: () => renamePath(rel) },
         { label: t('隐藏这个 LoRA'), show: !isHidden(rel), run: () => hidePath(rel) },
         { label: t('在资源管理器中显示'), run: () => revealPath(rel) },
+        { label: t('在 Civitai 打开'), run: () => openCivitai(rel, cardByPath(rel)) },
         { sep: true },
         { label: t('删除 LoRA 文件…'), danger: true, run: () => deleteLoraFile(rel) },
       ]);
