@@ -328,6 +328,13 @@ function setMatchLabel(txt) {
   if (el) el.textContent = txt;
 }
 
+/* 空闲时按钮上直接显示还有多少"未匹配" */
+function updateMatchButton() {
+  if (matchRun) return;
+  const n = lib.cards.filter(needsMatch).length;
+  setMatchLabel(n ? t('匹配 Civitai') + ' · ' + n : t('匹配 Civitai'));
+}
+
 async function matchAll() {
   if (matchRun) { matchRun.cancelled = true; return; }   // 再点一次 = 停
 
@@ -380,7 +387,7 @@ async function matchAll() {
     toast(t('匹配失败：') + e.message, true);
   } finally {
     matchRun = null;
-    setMatchLabel(t('匹配 Civitai'));
+    updateMatchButton();
   }
 }
 
@@ -520,8 +527,8 @@ function cardHTML(card) {
     <div class="card-head" draggable="true" data-whole="${card.id}" title="${esc(card.path || t('（没有绑定 LoRA 文件）'))}">
       <span class="title">${esc(card.title || t('(无标题)'))}${card.w ? ` <span class="wbadge">${esc(card.w)}</span>` : ''}${whole >= 0 ? ' ⑂' + (whole + 1) : ''}</span>
       <span class="n">${kids.length}</span>
-      ${card.civitai ? '<span class="civ" title="' + t('已有 Civitai 页面') + '">🔗</span>'
-        : card.civitai === '' ? '<span class="civ none" title="' + t('查过，Civitai 上没有') + '">—</span>' : ''}
+      ${card.civitai ? '<span class="civ" title="' + t('已匹配：有 Civitai 页面') + '">🔗</span>'
+        : card.civitai === '' ? '<span class="civ none" title="' + t('无匹配：Civitai 上没有，不再自动重试') + '">✕</span>' : ''}
       <span class="acts">
         <button class="icon" data-add-child="${card.id}" title="${t('新建小卡片')}">＋</button>
         <button class="icon" data-edit-card="${card.id}" title="${t('编辑大卡片 / 移动')}">✎</button>
@@ -730,6 +737,7 @@ function renderSel() {
 }
 
 function render() {
+  updateMatchButton();
   renderTree();
   renderMain();
   renderSel();
