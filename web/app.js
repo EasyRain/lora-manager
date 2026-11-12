@@ -1052,6 +1052,26 @@ async function saveCard() {
   touch(); closeCard(); render();
 }
 
+/* 为一个还没卡的 LoRA 直接建一张空的大卡片（不写内容） */
+function createEmptyCard(rel) {
+  const exist = cardByPath(rel);
+  if (exist) return openCard(exist.id);
+  const c = {
+    id: uid('g_'),
+    path: rel,
+    dir: '',
+    title: stemOf(rel),
+    w: '',
+    children: [],
+    order: nextOrder(curDir),
+    updated: Date.now(),
+  };
+  lib.cards.push(c);
+  touch();
+  render();
+  toast(t('已创建 ') + (c.title || ''));
+}
+
 function claimFile(rel) {
   // 已经有卡：直接加一条
   const exist = cardByPath(rel);
@@ -1160,6 +1180,7 @@ function bind() {
       return showMenu(e, [
         { label: t('取消隐藏'), show: isHidden(rel), run: () => unhidePath(rel) },
         { label: t('新建小卡片'), show: !isHidden(rel), run: () => claimFile(rel) },
+        { label: t('新建大卡片'), show: !isHidden(rel), run: () => createEmptyCard(rel) },
         { sep: true, show: !isHidden(rel) },
         { label: t('重命名 LoRA 文件…'), run: () => renamePath(rel) },
         { label: t('隐藏这个 LoRA'), show: !isHidden(rel), run: () => hidePath(rel) },
