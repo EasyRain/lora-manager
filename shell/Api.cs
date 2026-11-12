@@ -240,15 +240,15 @@ public static class Api
                 name = Path.GetFileName(name);
                 var ext = Path.GetExtension(name).ToLowerInvariant();
                 if (ext is not (".png" or ".jpg" or ".jpeg" or ".webp" or ".gif")) ext = ".png";
-                var stem = Sanitize(Path.GetFileNameWithoutExtension(name));
-                if (stem.Length > 40) stem = stem[..40];
-
                 using var ms = new MemoryStream();
                 await ctx.Request.Body.CopyToAsync(ms);
                 if (ms.Length == 0 || ms.Length > 64L * 1024 * 1024)
                     return Results.Json(new { error = "bad size" }, statusCode: 400);
 
-                var final = $"{stem}-{DateTime.Now:yyyyMMdd-HHmmss}{ext}";
+                // 统一命名：年月日-时分秒-4位随机，按名字排序就是时间顺序
+                var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                var rnd = Random.Shared.Next(0x1000, 0x10000).ToString("x4");
+                var final = $"{stamp}-{rnd}{ext}";
                 await File.WriteAllBytesAsync(Path.Combine(ImgDir, final), ms.ToArray());
                 return Results.Json(new { name = final, url = "/images/" + Uri.EscapeDataString(final) });
             }
