@@ -512,7 +512,8 @@ public static class Api
                 if (modelId == 0) return Results.Json(new { found = false, hash });
 
                 var url = "https://civitai.com/models/" + modelId + "?modelVersionId=" + versionId;
-                return Results.Json(new { found = true, hash, modelId, versionId, url });
+                var title = doc?["model"]?["name"]?.GetValue<string>() ?? "";
+                return Results.Json(new { found = true, hash, modelId, versionId, url, title });
             }
             catch (TaskCanceledException)
             {

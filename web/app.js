@@ -313,6 +313,15 @@ async function openCivitai(rel, card) {
   return rematchOne(card, rel, { open: true });
 }
 
+/* tooltip：第一行 Civitai 标题（仅已匹配），第二行文件位置 */
+function cardTip(card, path) {
+  const st = civState(path || '', card);
+  const lines = [];
+  if (st.ctitle) lines.push(st.ctitle);
+  lines.push(path || t('（没有绑定 LoRA 文件）'));
+  return lines.join('\n');
+}
+
 /* 三态标记：未匹配 ↻ / 已匹配 ↗ / 无匹配 不显示 */
 function civMarkHTML(key, state) {
   if (state === undefined) {
@@ -417,7 +426,8 @@ async function matchAll() {
       try {
         const d = await postJson('/api/civitai/lookup', { hash: item.st.h, path: item.rel });
         const url = d.found && d.url ? d.url : '';
-        setCivState(item.rel, cardByPath(item.rel), { civitai: url, ...(d.hash ? { h: d.hash } : {}) }, true);
+        setCivState(item.rel, cardByPath(item.rel),
+          { civitai: url, ctitle: d.title || '', ...(d.hash ? { h: d.hash } : {}) }, true);
         url ? run.ok++ : run.none++;
       } catch (e) {
         setCivState(item.rel, cardByPath(item.rel), { civitai: '' }, true);
@@ -450,6 +460,7 @@ async function rematchOne(card, rel, opts) {
     const d = await postJson('/api/civitai/lookup', { path });
     setCivState(path, target, {
       civitai: d.found && d.url ? d.url : '',
+      ctitle: (d.found && d.title) || '',
       ...(d.hash ? { h: d.hash } : {}),
     });
     render();
@@ -577,7 +588,7 @@ function cardHTML(card) {
   const kids = card.children || [];
   const whole = sel.indexOf(card.id);
   return `<div class="card ${whole >= 0 ? 'has-sel' : ''}" data-card="${card.id}">
-    <div class="card-head" draggable="true" data-whole="${card.id}" title="${esc(card.path || t('（没有绑定 LoRA 文件）'))}">
+    <div class="card-head" draggable="true" data-whole="${card.id}" title="${esc(cardTip(card, card.path))}">
       <span class="title">${esc(card.title || t('(无标题)'))}${card.w ? ` <span class="wbadge">${esc(card.w)}</span>` : ''}${whole >= 0 ? ' ⑂' + (whole + 1) : ''}</span>
       <span class="n">${kids.length}</span>
       ${card.path ? civMarkHTML('c:' + card.id, civState(card.path, card).civitai) : ''}
@@ -639,7 +650,7 @@ function ghostHTML(file, hiddenView) {
     : `<button class="icon" data-claim="${esc(file.rel)}" title="${t('新建小卡片')}">＋</button>`;
   const hint = hiddenView ? t('已隐藏，右键或点 ↩ 恢复。') : t('还没有小卡片，点 ＋ 新建。');
   const inner = card ? kidsOf(card) : `<div class="child"><div class="mid"><div class="cb">${hint}</div></div></div>`;
-  return `<div class="card ghost" data-path="${esc(file.rel)}">
+  return `<div class="card ghost" data-path="${esc(file.rel)}" title="${esc(cardTip(cardByPath(file.rel), file.rel))}">
     <div class="card-head">
       <span class="title">${esc(file.name)}</span>
       <span class="n">${hiddenView ? t('隐藏') : t('空')}</span>
