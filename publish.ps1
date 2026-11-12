@@ -116,10 +116,17 @@ try {
         -Body ([Text.Encoding]::UTF8.GetBytes($payload)) @common
 } catch {
     $resp = $_.Exception.Response
-    if ($resp -and $resp.StatusCode.value__ -eq 422) {
-        Fail "v$Version 已经存在（tag 或 release 重复），换个版本号或先在网页上删掉"
+    $bodyText = ""
+    if ($resp) {
+        try {
+            $sr = New-Object IO.StreamReader($resp.GetResponseStream())
+            $bodyText = $sr.ReadToEnd()
+        } catch { }
     }
-    Fail "创建失败: $($_.Exception.Message)"
+    if ($resp -and $resp.StatusCode.value__ -eq 422 -and $bodyText -match "already_exists") {
+        Fail "v$Version 的 tag 已经存在；先在网页上删掉那个 release/tag，或换个版本号"
+    }
+    Fail ("创建失败: " + $_.Exception.Message + "`n" + $bodyText)
 }
 Write-Host "已创建 #$($rel.id)"
 
