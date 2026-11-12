@@ -7,7 +7,7 @@ const uid = (p) => p + Math.random().toString(36).slice(2, 9);
 
 const HIDDEN = '__hidden__';
 
-let lib = { version: 3, root: '', cards: [], hidden: [] };
+let lib = { version: 3, root: '', cards: [], hidden: [], files: {} };
 let tree = { root: '', dirs: [], files: [] };
 let curDir = '';
 let sel = [];
@@ -31,6 +31,7 @@ async function loadLib() {
   const d = await r.json();
   lib.cards = Array.isArray(d.cards) ? d.cards : [];
   lib.hidden = Array.isArray(d.hidden) ? d.hidden : [];
+  lib.files = d.files && typeof d.files === 'object' ? d.files : {};
   lib.root = d.root || '';
   lib.version = d.version || 2;
   lib.savedAt = d.savedAt;
@@ -56,7 +57,7 @@ async function save() {
     const r = await fetch('/api/library', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: 3, root: lib.root || tree.root || '', cards: lib.cards, hidden: lib.hidden }),
+      body: JSON.stringify({ version: 3, root: lib.root || tree.root || '', cards: lib.cards, hidden: lib.hidden, files: lib.files }),
     });
     if (!r.ok) throw new Error(await r.text());
     const d = await r.json();
@@ -312,6 +313,41 @@ async function openCivitai(rel, card) {
   return rematchOne(card, rel);
 }
 
+/* 三态标记：未匹配 ↻ / 已匹配 ↗ / 无匹配 不显示 */
+function civMarkHTML(key, state) {
+  if (state === undefined) {
+    return '<span class="civ todo" data-civ-refresh="' + esc(key) + '" title="' + t('未匹配：点一下查这个 LoRA') + '">↻</span>';
+  }
+  if (state) {
+    return '<span class="civ" data-civ-open="' + esc(key) + '" title="' + t('已匹配：点开 Civitai 页面') + '">↗</span>';
+  }
+  return '';
+}
+
+/* ---------------- Civitai 状态（按文件记录，和有没有卡片无关） ---------------- */
+function civState(rel, card) {
+  if (card) return { h: card.h, civitai: card.civitai };
+  return lib.files[rel] || {};
+}
+
+function setCivState(rel, card, patch) {
+  if (card) {
+    Object.assign(card, patch);
+  } else {
+    lib.files[rel] = Object.assign({}, lib.files[rel] || {}, patch);
+  }
+  touch();
+}
+
+/* 建卡时把文件上已有的匹配结果搬进卡片 */
+function adoptFileState(rel, card) {
+  const st = lib.files[rel];
+  if (!st || !card) return;
+  if (st.h && !card.h) card.h = st.h;
+  if (st.civitai !== undefined && card.civitai === undefined) card.civitai = st.civitai;
+  delete lib.files[rel];
+}
+
 /* ---------------- 批量匹配 Civitai ---------------- */
 /* card.civitai 三种状态：
      undefined  -> 还没查过
@@ -319,8 +355,15 @@ async function openCivitai(rel, card) {
      "https://…" -> 查到了 */
 let matchRun = null;
 
-function needsMatch(c) {
-  return c.path && c.civitai === undefined && !isHidden(c.path);
+/* 所有需要匹配的 LoRA（含没有卡片的） */
+function matchTargets() {
+  return tree.files
+    .filter((f) => !isHidden(f.rel))
+    .map((f) => {
+      const card = cardByPath(f.rel);
+      return { rel: f.rel, card, st: civState(f.rel, card) };
+    })
+    .filter((x) => x.st.civitai === undefined);
 }
 
 function setMatchLabel(txt) {
@@ -331,7 +374,7 @@ function setMatchLabel(txt) {
 /* 空闲时按钮上直接显示还有多少"未匹配" */
 function updateMatchButton() {
   if (matchRun) return;
-  const n = lib.cards.filter(needsMatch).length;
+  const n = matchTargets().length;
   setMatchLabel(t('匹配 Civitai'));
   const btn = $('#btn-match');
   if (!btn) return;
@@ -343,7 +386,7 @@ function updateMatchButton() {
 async function matchAll() {
   if (matchRun) { matchRun.cancelled = true; return; }   // 再点一次 = 停
 
-  const todo = lib.cards.filter(needsMatch);
+  const todo = matchTargets();
   if (!todo.length) return toast(t('没有需要匹配的 LoRA 了'));
 
   const run = { cancelled: false, total: todo.length, done: 0, ok: 0, none: 0 };
@@ -358,31 +401,29 @@ async function matchAll() {
     }
 
     // 一次把缺的哈希都算出来
-    const needHash = todo.filter((c) => !c.h).map((c) => c.path);
+    const needHash = todo.filter((x) => !x.st.h).map((x) => x.rel);
     if (needHash.length) {
       setMatchLabel(t('计算哈希…'));
       const r = await postJson('/api/hash', { paths: needHash });
       Object.keys(r.hashes || {}).forEach((rel) => {
-        const c = cardByPath(rel);
-        if (c) c.h = r.hashes[rel];
+        setCivState(rel, cardByPath(rel), { h: r.hashes[rel] });
       });
-      touch();
     }
 
-    for (const c of todo) {
+    for (const item of todo) {
       if (run.cancelled) break;
       setMatchLabel(t('匹配中 ') + (run.done + 1) + '/' + run.total);
       try {
-        const d = await postJson('/api/civitai/lookup', { hash: c.h, path: c.path });
-        if (d.found && d.url) { c.civitai = d.url; run.ok++; }
-        else { c.civitai = ''; run.none++; }      // 查过但没有，也算"已匹配"
+        const d = await postJson('/api/civitai/lookup', { hash: item.st.h, path: item.rel });
+        const url = d.found && d.url ? d.url : '';
+        setCivState(item.rel, cardByPath(item.rel), { civitai: url, ...(d.hash ? { h: d.hash } : {}) });
+        url ? run.ok++ : run.none++;
       } catch (e) {
-        c.civitai = '';                             // 出错也不反复重试
+        setCivState(item.rel, cardByPath(item.rel), { civitai: '' });
         run.none++;
       }
       run.done++;
-      touch();
-      await new Promise((r2) => setTimeout(r2, 250));   // 温柔一点，别把 Civitai 打疼
+      await new Promise((r2) => setTimeout(r2, 250));
     }
 
     render();
@@ -404,12 +445,11 @@ async function rematchOne(card, rel) {
   toast(t('正在查 Civitai…'));
   try {
     const d = await postJson('/api/civitai/lookup', { path });
-    if (target) {
-      if (d.hash) target.h = d.hash;
-      target.civitai = d.found && d.url ? d.url : '';
-      touch();
-      render();
-    }
+    setCivState(path, target, {
+      civitai: d.found && d.url ? d.url : '',
+      ...(d.hash ? { h: d.hash } : {}),
+    });
+    render();
     if (d.found && d.url) { openUrl(d.url); toast(t('已打开模型页')); }
     else toast(t('Civitai 上没有这个模型（可能已下架，或不是从 Civitai 下的）'), true);
   } catch (e) {
@@ -431,6 +471,7 @@ async function deleteLoraFile(rel) {
       card.dir = parentOf(rel);
     }
     lib.hidden = lib.hidden.filter((x) => x !== rel);
+    delete lib.files[rel];
     sel = sel.filter((k) => !k.startsWith(card ? card.id : '\u0000'));
     touch();
     await loadTree();
@@ -532,11 +573,7 @@ function cardHTML(card) {
     <div class="card-head" draggable="true" data-whole="${card.id}" title="${esc(card.path || t('（没有绑定 LoRA 文件）'))}">
       <span class="title">${esc(card.title || t('(无标题)'))}${card.w ? ` <span class="wbadge">${esc(card.w)}</span>` : ''}${whole >= 0 ? ' ⑂' + (whole + 1) : ''}</span>
       <span class="n">${kids.length}</span>
-      ${card.civitai
-        ? '<span class="civ" data-civ-open="' + card.id + '" title="' + t('已匹配：点开 Civitai 页面') + '">↗</span>'
-        : card.civitai === ''
-          ? ''   /* 无匹配：不显示标记 */
-          : '<span class="civ todo" data-civ-refresh="' + card.id + '" title="' + t('未匹配：点一下查这个 LoRA') + '">↻</span>'}
+      ${civMarkHTML('c:' + card.id, civState(card.path || '', card).civitai)}
       <span class="acts">
         <button class="icon" data-add-child="${card.id}" title="${t('新建小卡片')}">＋</button>
         <button class="icon" data-edit-card="${card.id}" title="${t('编辑大卡片 / 移动')}">✎</button>
@@ -599,6 +636,7 @@ function ghostHTML(file, hiddenView) {
     <div class="card-head">
       <span class="title">${esc(file.name)}</span>
       <span class="n">${hiddenView ? t('隐藏') : t('空')}</span>
+      ${civMarkHTML('f:' + file.rel, civState(file.rel, cardByPath(file.rel)).civitai)}
       <span class="acts">${btn}</span>
     </div>
     ${inner}
@@ -1078,6 +1116,7 @@ function saveChild() {
       children: [],
       updated: Date.now(),
     };
+    adoptFileState(card.path, card);
     lib.cards.push(card);
     card.order = nextOrder(curDir);
     editingChild = { cardId: card.id, childId: null };
@@ -1189,6 +1228,7 @@ function createEmptyCard(rel) {
     order: nextOrder(curDir),
     updated: Date.now(),
   };
+  adoptFileState(rel, c);
   lib.cards.push(c);
   touch();
   render();
@@ -1398,18 +1438,26 @@ function bind() {
     const claim = t.closest('[data-claim]');
     if (claim) { e.stopPropagation(); return claimFile(claim.dataset.claim); }
 
-    const civOpen = t.closest('[data-civ-open]');
-    if (civOpen) {
+    const keyOf = (el) => {
+      const k = el.dataset.civOpen || el.dataset.civRefresh || '';
+      const i = k.indexOf(':');
+      return { kind: k.slice(0, i), val: k.slice(i + 1) };
+    };
+    const openEl = t.closest('[data-civ-open]');
+    if (openEl) {
       e.stopPropagation();
-      const c = lib.cards.find((x) => x.id === civOpen.dataset.civOpen);
-      if (c && c.civitai) openUrl(c.civitai);
+      const { kind, val } = keyOf(openEl);
+      const card = kind === 'c' ? lib.cards.find((x) => x.id === val) : cardByPath(val);
+      const url = civState(kind === 'c' ? (card && card.path) || '' : val, card).civitai;
+      if (url) openUrl(url);
       return;
     }
-    const civRefresh = t.closest('[data-civ-refresh]');
-    if (civRefresh) {
+    const refEl = t.closest('[data-civ-refresh]');
+    if (refEl) {
       e.stopPropagation();
-      const c = lib.cards.find((x) => x.id === civRefresh.dataset.civRefresh);
-      if (c) rematchOne(c, null);
+      const { kind, val } = keyOf(refEl);
+      rematchOne(kind === 'c' ? lib.cards.find((x) => x.id === val) : null,
+                 kind === 'f' ? val : null);
       return;
     }
 
