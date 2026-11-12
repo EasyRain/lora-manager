@@ -4,13 +4,13 @@
 
 A **LoRA file manager + prompt notebook** for ComfyUI: browse your real folder tree, one card per LoRA, any number of prompt entries under it, tick a few and copy them merged as a single line.
 
-![中文界面](docs/shot-zh.png)
+![中文界面](docs/screenshot-zh.png)
 
-![English UI](docs/shot-en.png)
+![English UI](docs/screenshot-en.png)
 
 双击卡片按 markdown 预览 / Double-click a card for a rendered preview:
 
-![markdown 预览](docs/shot-preview.png)
+![markdown 预览](docs/screenshot-preview.png)
 
 ---
 
