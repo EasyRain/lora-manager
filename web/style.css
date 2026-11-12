@@ -308,7 +308,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .hint{color:var(--dim2); font-size:11.5px; white-space:nowrap}
 
 /* ---------- 预览 / markdown ---------- */
-.preview-sheet{width:min(840px,94vw); height:min(780px,92vh)}
+.preview-sheet{width:min(840px,94vw); height:auto; max-height:min(780px,92vh)}
+/* 内容短时窗口跟着缩，不留一大片空白；长内容到顶后由 .pv-body 滚动 */
 .pv-title{flex:1 1 auto; font-size:15px; font-weight:700; color:var(--fg-strong);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .pv-body{flex:1 1 auto; overflow:auto; padding:6px 22px 18px; line-height:1.8; font-size:14px}
