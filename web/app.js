@@ -332,7 +332,12 @@ function setMatchLabel(txt) {
 function updateMatchButton() {
   if (matchRun) return;
   const n = lib.cards.filter(needsMatch).length;
-  setMatchLabel(n ? t('匹配 Civitai') + ' · ' + n : t('匹配 Civitai'));
+  setMatchLabel(t('匹配 Civitai'));
+  const btn = $('#btn-match');
+  if (!btn) return;
+  btn.title = n
+    ? t('给还没匹配过的 LoRA 查 Civitai 页面') + ' · ' + t('还剩 ') + n + t(' 个未匹配')
+    : t('全部匹配过了');
 }
 
 async function matchAll() {
@@ -527,8 +532,11 @@ function cardHTML(card) {
     <div class="card-head" draggable="true" data-whole="${card.id}" title="${esc(card.path || t('（没有绑定 LoRA 文件）'))}">
       <span class="title">${esc(card.title || t('(无标题)'))}${card.w ? ` <span class="wbadge">${esc(card.w)}</span>` : ''}${whole >= 0 ? ' ⑂' + (whole + 1) : ''}</span>
       <span class="n">${kids.length}</span>
-      ${card.civitai ? '<span class="civ" title="' + t('已匹配：有 Civitai 页面') + '">🔗</span>'
-        : card.civitai === '' ? '<span class="civ none" title="' + t('无匹配：Civitai 上没有，不再自动重试') + '">✕</span>' : ''}
+      ${card.civitai
+        ? '<span class="civ" data-civ-open="' + card.id + '" title="' + t('已匹配：点开 Civitai 页面') + '">↗</span>'
+        : card.civitai === ''
+          ? ''   /* 无匹配：不显示标记 */
+          : '<span class="civ todo" data-civ-refresh="' + card.id + '" title="' + t('未匹配：点一下查这个 LoRA') + '">↻</span>'}
       <span class="acts">
         <button class="icon" data-add-child="${card.id}" title="${t('新建小卡片')}">＋</button>
         <button class="icon" data-edit-card="${card.id}" title="${t('编辑大卡片 / 移动')}">✎</button>
@@ -1389,6 +1397,21 @@ function bind() {
 
     const claim = t.closest('[data-claim]');
     if (claim) { e.stopPropagation(); return claimFile(claim.dataset.claim); }
+
+    const civOpen = t.closest('[data-civ-open]');
+    if (civOpen) {
+      e.stopPropagation();
+      const c = lib.cards.find((x) => x.id === civOpen.dataset.civOpen);
+      if (c && c.civitai) openUrl(c.civitai);
+      return;
+    }
+    const civRefresh = t.closest('[data-civ-refresh]');
+    if (civRefresh) {
+      e.stopPropagation();
+      const c = lib.cards.find((x) => x.id === civRefresh.dataset.civRefresh);
+      if (c) rematchOne(c, null);
+      return;
+    }
 
     const addChild = t.closest('[data-add-child]');
     if (addChild) { e.stopPropagation(); return openChild(addChild.dataset.addChild, null); }

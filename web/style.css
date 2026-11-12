@@ -346,3 +346,13 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* 卡片标题右侧的 Civitai 匹配标记 */
 .civ{font-size:11px; color:var(--link); margin-left:2px; flex:0 0 auto}
 .civ.none{color:var(--dim3)}
+
+/* Civitai 状态图标：未匹配=刷新圈，已匹配=外链箭头 */
+.civ{
+  font-size:12px; line-height:1; margin-left:3px; flex:0 0 auto; cursor:pointer;
+  padding:1px 3px; border-radius:4px; opacity:.55; transition:.12s;
+}
+.civ:hover{opacity:1; background:var(--hover3)}
+.civ.todo{color:var(--dim2)}
+.civ.todo:hover{color:var(--accent)}
+.civ[data-civ-open]{color:var(--link)}

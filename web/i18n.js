@@ -218,8 +218,12 @@ const I18N = {
     '刷新 Civitai 信息': 'Refresh Civitai info',
 
 
-    '已匹配：有 Civitai 页面': 'Matched: has a Civitai page',
-    '无匹配：Civitai 上没有，不再自动重试': 'No match: not on Civitai, will not retry automatically',
+
+    '已匹配：点开 Civitai 页面': 'Matched — click to open the Civitai page',
+    '未匹配：点一下查这个 LoRA': 'Not matched — click to look it up',
+    '还剩 ': ' ',
+    ' 个未匹配': ' unmatched',
+    '全部匹配过了': 'Everything is matched',
 
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
