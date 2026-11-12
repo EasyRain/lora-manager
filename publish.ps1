@@ -89,6 +89,9 @@ SHA256  $sha
 ``````
 "@
 }
+# Get-Content -Raw 的字符串带文件系统 ETS 属性（PSPath/Length…），
+# ConvertTo-Json 会把它们一起序列化成对象，必须强转成纯字符串
+$body = [string]$body
 if ($body -notmatch "SHA256") { $body = $body + "`n``````nSHA256  $sha`n```````n" }
 
 # ---------- 4. 建 Release ----------
