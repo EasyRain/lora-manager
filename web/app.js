@@ -352,7 +352,7 @@ function cachePut(hash, url, title) {
 
 /* ---------------- Civitai 状态（按文件记录，和有没有卡片无关） ---------------- */
 function civState(rel, card) {
-  if (card) return { h: card.h, civitai: card.civitai };
+  if (card) return { h: card.h, civitai: card.civitai, ctitle: card.ctitle };
   return lib.files[rel] || {};
 }
 
@@ -389,7 +389,7 @@ function matchTargets() {
       const card = cardByPath(f.rel);
       return { rel: f.rel, card, st: civState(f.rel, card) };
     })
-    .filter((x) => x.st.civitai === undefined);
+    .filter((x) => x.st.civitai === undefined || (x.st.civitai && !x.st.ctitle));
 }
 
 function setMatchLabel(txt) {
@@ -443,7 +443,7 @@ async function matchAll() {
 
       // 本地缓存里有结果就直接用，不联网
       const cached = cacheGet(item.st.h);
-      if (cached) {
+      if (cached && (item.st.civitai === undefined || cached.title)) {
         setCivState(item.rel, cardByPath(item.rel), { civitai: cached.url || '', ctitle: cached.title || '' }, true);
         cached.url ? run.ok++ : run.none++;
         run.done++;

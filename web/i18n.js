@@ -222,7 +222,7 @@ const I18N = {
     '已匹配：点开 Civitai 页面': 'Matched — click to open the Civitai page',
     '未匹配：点一下查这个 LoRA': 'Not matched — click to look it up',
     '还剩 ': ' ',
-    ' 个未匹配': ' unmatched',
+    ' 个未匹配': ' to process',
     '全部匹配过了': 'Everything is matched',
 
     '已匹配': 'Matched',
