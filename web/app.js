@@ -310,7 +310,7 @@ function openUrl(url) {
 async function openCivitai(rel, card) {
   if (!rel) return;
   if (card && card.civitai) return openUrl(card.civitai);
-  return rematchOne(card, rel);
+  return rematchOne(card, rel, { open: true });
 }
 
 /* 三态标记：未匹配 ↻ / 已匹配 ↗ / 无匹配 不显示 */
@@ -437,8 +437,8 @@ async function matchAll() {
   }
 }
 
-/* 单个强制重查（右键用） */
-async function rematchOne(card, rel) {
+/* 单个强制重查。opts.open=true 时顺便打开页面（"在 Civitai 打开"没缓存时用） */
+async function rematchOne(card, rel, opts) {
   const target = card || cardByPath(rel);
   const path = rel || (target && target.path);
   if (!path) return;
@@ -450,8 +450,12 @@ async function rematchOne(card, rel) {
       ...(d.hash ? { h: d.hash } : {}),
     });
     render();
-    if (d.found && d.url) { openUrl(d.url); toast(t('已打开模型页')); }
-    else toast(t('Civitai 上没有这个模型（可能已下架，或不是从 Civitai 下的）'), true);
+    if (d.found && d.url) {
+      if (opts && opts.open) { openUrl(d.url); toast(t('已打开模型页')); }
+      else toast(t('已匹配'));
+    } else {
+      toast(t('无匹配：Civitai 上没有这个模型'), true);
+    }
   } catch (e) {
     toast(t('查询失败：') + e.message, true);
   }
