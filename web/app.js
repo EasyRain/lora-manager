@@ -331,6 +331,9 @@ function importLora(dir) {
 }
 
 /* ---------------- 拖放上传 ---------------- */
+function anyModalOpen() {
+  return !$('#modal').hidden || !$('#modal-card').hidden || !$('#modal-move').hidden || !$('#modal-preview').hidden;
+}
 const LORA_EXT = /\.(safetensors|sft|ckpt|pt|pth|bin)$/i;
 
 function dropTargetDir(ev) {
@@ -1320,6 +1323,7 @@ function bind() {
   let dragDepth = 0;
   document.addEventListener('dragenter', (e) => {
     if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+    if (anyModalOpen()) { e.preventDefault(); return; }   // 编辑界面里拖图，别弹遮罩
     dragDepth++;
     $('#dropmask').hidden = false;
     $('#dropdir').textContent = dirLabel(dropTargetDir(e));
@@ -1328,12 +1332,17 @@ function bind() {
     if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
+    if (anyModalOpen()) {                       // 只给"可放下"的光标，不显示目录提示
+      $('#modal').classList.toggle('dropping', !$('#modal').hidden);
+      return;
+    }
     $('#dropdir').textContent = dirLabel(dropTargetDir(e));
     document.querySelectorAll('.tile.drop').forEach((x) => x.classList.remove('drop'));
     const tile = e.target.closest && e.target.closest('.tile');
     if (tile) tile.classList.add('drop');
   });
   document.addEventListener('dragleave', (e) => {
+    if (anyModalOpen() && !e.relatedTarget) $('#modal').classList.remove('dropping');
     dragDepth = Math.max(0, dragDepth - 1);
     if (dragDepth === 0) {
       $('#dropmask').hidden = true;
@@ -1344,10 +1353,22 @@ function bind() {
     dragDepth = 0;
     $('#dropmask').hidden = true;
     document.querySelectorAll('.tile.drop').forEach((x) => x.classList.remove('drop'));
+    $('#modal').classList.remove('dropping');
     if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
     e.preventDefault();
+
+    const files = Array.from(e.dataTransfer.files);
+
+    // 编辑界面开着：拖进来的是图片就设为配图，不是图片就不当成导入 LoRA
+    if (anyModalOpen()) {
+      const img = files.find((f) => (f.type || '').startsWith('image/'));
+      if (img && !$('#modal').hidden) return uploadImage(img);
+      if (img) return toast(t('这张卡片不放图片，图片请加在小卡片上'), true);
+      return toast(t('编辑界面里只能拖图片进来；导入 LoRA 请在卡片区拖放'), true);
+    }
+
     const dir = dropTargetDir(e);
-    await uploadFiles(Array.from(e.dataTransfer.files), dir);
+    await uploadFiles(files, dir);
   });
 
   /* 小卡片编辑 */

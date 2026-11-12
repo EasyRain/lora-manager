@@ -194,6 +194,10 @@ const I18N = {
     '已删除 ': 'Deleted ',
     '删除失败：': 'Delete failed: ',
 
+    '这张卡片不放图片，图片请加在小卡片上': 'Images belong to entries, not to the card itself',
+    '编辑界面里只能拖图片进来；导入 LoRA 请在卡片区拖放':
+      'Only images can be dropped here; drop LoRA files on the card area',
+
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',
