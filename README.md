@@ -27,7 +27,8 @@ When you have dozens of LoRAs, their trigger words and prompt variants end up sc
 - **多选合并复制**：按点选顺序拼成一行，分隔符可选逗号/换行/空格，可去重
 - **预览**：双击卡片按 markdown 渲染（标题、加粗、代码、列表、表格、分隔线）
 - **格式化**：全角标点转半角、逗号与空格规范化；选中文字时只格式化那一段
-- **文件操作**：重命名、隐藏（不改文件）、移动、把 `.safetensors` 拖进窗口复制到当前目录
+- **文件操作**：重命名、移动、隐藏（不改文件）、删除（进回收站）、拖放或右键导入
+- **Civitai 匹配**：按文件 SHA256 找到模型页，一键打开；批量匹配、三态标记、结果本地缓存
 - **拖动排序**：手动顺序会保留；「按规则排序」是右键里的一次性操作
 - **主题**：跟随系统 / 亮色 / 暗色
 - **语言**：中文 / English
@@ -66,6 +67,24 @@ data/                   # 自动创建：library.json + images/
 set LORA_MANAGER_ROOT=D:\ComfyUI\models\loras
 ```
 
+## Civitai 匹配 / Civitai lookup
+
+给本地 LoRA 找到它在 Civitai 上的**模型页地址**（顺带记下页面标题用于提示）。只取这两样，触发词、封面、卡片名都不动——手工写比自动填可靠。
+
+- 右键 **在 Civitai 打开**（仅已匹配时出现）
+- 顶栏 **匹配 Civitai**：批量处理还没匹配的
+  - 先做 3 秒连通性检测，连不上直接停
+  - 一次性算完缺的 SHA256（实测 1.4 GB/s，10 GB 全库约 7 秒）
+  - 逐个请求、间隔 250ms，再点一次可中断
+- 三种状态：`↻` 未匹配（悬停出现，点一下单查）/ `↗` 已匹配 / 无标记 = 查过但没有，不再重试
+- 没建卡片的 LoRA 也能匹配：状态按文件记录，建卡时自动继承
+- 结果按 SHA256 缓存进 `library.json`，命中缓存**不再联网**；文件改名、移动都不影响
+
+> 这是**可选**的联网功能，不联网时其它功能完全不受影响。
+> 查询只发送模型哈希到 `civitai.com`，不上传任何本地内容；但如果在意「别人知道你在用什么模型」，就不要开它。
+
+Find the Civitai **model page** for a local LoRA by SHA256 — nothing else is imported. Fully optional; when offline the rest of the app is unaffected.
+
 ## 数据在哪 / Where is my data
 
 ```
@@ -91,20 +110,28 @@ library.json.bak       # 每次保存自动留的上一版
       "title": "碧蓝航线 塔什干",
       "w": "0.7-1.0",
       "order": 3,
+      "h": "d2f148e0...bf72",
+      "civitai": "https://civitai.com/models/2900180?modelVersionId=3279360",
+      "ctitle": "Azur Lane Tashkent | 碧蓝航线 塔什干",
       "children": [
         { "id": "k_1", "title": "人设", "body": "tashkent, purple hair, ...", "img": "", "tags": [] }
       ]
     }
-  ]
+  ],
+  "files": { "Style/没有建卡的.safetensors": { "civitai": "", "h": "..." } },
+  "civcache": { "d2f148e0...bf72": { "url": "https://civitai.com/models/...", "title": "..." } }
 }
 ```
 
-`path` 是相对 LoRA 根目录的路径；`dir` 只对没绑定文件的纯文本卡有效。
+- `path` 相对 LoRA 根目录；`dir` 只对没绑定文件的纯文本卡有效
+- `civitai` 三种状态：不存在=没查过、空串=查过但没有、有地址=已匹配
+- `files` 存没建卡文件的匹配状态；`civcache` 是按 SHA256 的查询缓存
 
 ## 注意 / Caveats
 
 - **重命名和移动会改磁盘上的真实文件**。ComfyUI 的工作流里存的是相对路径（`lora_name`），改完旧工作流就找不到它了；而且 **ComfyUI 要重启一次**才能看到新路径。顶栏「撤销移动」只记得最近一次。
 - **隐藏不改文件**，只是不在这里显示，ComfyUI 照样能加载。
+- **Civitai 匹配需要能访问 civitai.com**（会走系统代理）；查不到的条目会标记为「无匹配」，之后不再自动重试，右键「刷新 Civitai 信息」可以强制重查。
 - 只支持 Windows（用了 WinForms + WebView2）。
 - 界面中英双语，但**你自己的卡片内容不会被翻译**。
 

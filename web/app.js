@@ -679,7 +679,7 @@ function ghostHTML(file, hiddenView) {
   const btn = hiddenView
     ? `<button class="icon" data-unhide="${esc(file.rel)}" title="${t('取消隐藏')}">↩</button>`
     : `<button class="icon" data-claim="${esc(file.rel)}" title="${t('新建小卡片')}">＋</button>`;
-  const hint = hiddenView ? t('已隐藏，右键或点 ↩ 恢复。') : t('还没有小卡片，点 ＋ 新建。');
+  const hint = hiddenView ? t('已隐藏，右键或点 ↩ 恢复。') : t('还没有小卡片，点 ＋ 新建（右键也有）');
   const inner = card ? kidsOf(card) : `<div class="child"><div class="mid"><div class="cb">${hint}</div></div></div>`;
   return `<div class="card ghost" data-path="${esc(file.rel)}" title="${esc(cardTip(cardByPath(file.rel), file.rel))}">
     <div class="card-head">

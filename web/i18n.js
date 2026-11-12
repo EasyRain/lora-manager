@@ -48,7 +48,7 @@ const I18N = {
     '取消隐藏': 'Unhide',
     '还没有内容，点标题右边的 ＋ 新建小卡片。': 'No entries yet — click ＋ above to add one.',
     '已隐藏，右键或点 ↩ 恢复。': 'Hidden — right-click or click ↩ to restore.',
-    '还没有小卡片，点 ＋ 新建。': 'No entries yet — click ＋ to add one.',
+    '还没有小卡片，点 ＋ 新建（右键也有）': 'No entries yet — click ＋ (or right-click) to add one',
     '权重': 'weight',
     '这张卡还没有提示词。': 'This card has no entries yet.',
 
@@ -146,7 +146,7 @@ const I18N = {
     '把全角逗号、多余空格、重复逗号之类规整掉': 'Normalize punctuation, spaces and commas',
 
     // ---- 空状态 / 面包屑 ----
-    '这个文件夹还是空的。点右上角「＋ 卡片」，或把 .safetensors 拖进来。':
+    '这个文件夹还是空的。在空白处右键新建，或把 .safetensors 拖进来。':
       'This folder is empty. Right-click to create a card, or drop a .safetensors here.',
     '还没有设置 LoRA 目录 —— 点顶栏「⚙ 根目录」选一个 ComfyUI 的 models\\loras。':
       'No LoRA folder set — click “Root folder” in the toolbar.',
