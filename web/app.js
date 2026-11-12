@@ -7,7 +7,7 @@ const uid = (p) => p + Math.random().toString(36).slice(2, 9);
 
 const HIDDEN = '__hidden__';
 
-let lib = { version: 3, root: '', cards: [], hidden: [], files: {} };
+let lib = { version: 3, root: '', cards: [], hidden: [], files: {}, civcache: {} };
 let tree = { root: '', dirs: [], files: [] };
 let curDir = '';
 let sel = [];
@@ -32,6 +32,7 @@ async function loadLib() {
   lib.cards = Array.isArray(d.cards) ? d.cards : [];
   lib.hidden = Array.isArray(d.hidden) ? d.hidden : [];
   lib.files = d.files && typeof d.files === 'object' ? d.files : {};
+  lib.civcache = d.civcache && typeof d.civcache === 'object' ? d.civcache : {};
   lib.root = d.root || '';
   lib.version = d.version || 2;
   lib.savedAt = d.savedAt;
@@ -57,7 +58,7 @@ async function save() {
     const r = await fetch('/api/library', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ version: 3, root: lib.root || tree.root || '', cards: lib.cards, hidden: lib.hidden, files: lib.files }),
+      body: JSON.stringify({ version: 3, root: lib.root || tree.root || '', cards: lib.cards, hidden: lib.hidden, files: lib.files, civcache: lib.civcache }),
     });
     if (!r.ok) throw new Error(await r.text());
     const d = await r.json();
@@ -88,6 +89,13 @@ function migrate() {
 
 /* 把旧数据里挂在子卡片上的「权重 0.6-1.0」标签提到卡片级别（可重复执行） */
 function normalize() {
+  // 把已有卡片上的匹配结果搬进按哈希的缓存，之后就不用再查了
+  lib.cards.forEach((c) => {
+    if (c.h && c.civitai !== undefined && !lib.civcache[c.h]) {
+      lib.civcache[c.h] = { url: c.civitai, title: c.ctitle || '', at: Date.now() };
+    }
+  });
+
   let changed = false;
   lib.cards.forEach((c) => {
     const kids = c.children || [];
@@ -333,6 +341,15 @@ function civMarkHTML(key, state) {
   return '';
 }
 
+/* 按哈希缓存的 Civitai 结果：{ "<sha256>": { url, title } } ；查不到存 { url: "" } */
+function cacheGet(hash) {
+  return hash ? lib.civcache[hash] : undefined;
+}
+function cachePut(hash, url, title) {
+  if (!hash) return;
+  lib.civcache[hash] = { url: url || '', title: title || '', at: Date.now() };
+}
+
 /* ---------------- Civitai 状态（按文件记录，和有没有卡片无关） ---------------- */
 function civState(rel, card) {
   if (card) return { h: card.h, civitai: card.civitai };
@@ -423,11 +440,24 @@ async function matchAll() {
     for (const item of todo) {
       if (run.cancelled) break;
       setMatchLabel(t('匹配中 ') + (run.done + 1) + '/' + run.total);
+
+      // 本地缓存里有结果就直接用，不联网
+      const cached = cacheGet(item.st.h);
+      if (cached) {
+        setCivState(item.rel, cardByPath(item.rel), { civitai: cached.url || '', ctitle: cached.title || '' }, true);
+        cached.url ? run.ok++ : run.none++;
+        run.done++;
+        if (run.done % 10 === 0) touch();
+        continue;
+      }
+
       try {
         const d = await postJson('/api/civitai/lookup', { hash: item.st.h, path: item.rel });
         const url = d.found && d.url ? d.url : '';
+        const h = d.hash || item.st.h;
+        cachePut(h, url, d.title);
         setCivState(item.rel, cardByPath(item.rel),
-          { civitai: url, ctitle: d.title || '', ...(d.hash ? { h: d.hash } : {}) }, true);
+          { civitai: url, ctitle: d.title || '', h }, true);
         url ? run.ok++ : run.none++;
       } catch (e) {
         setCivState(item.rel, cardByPath(item.rel), { civitai: '' }, true);
@@ -458,6 +488,7 @@ async function rematchOne(card, rel, opts) {
   toast(t('正在查 Civitai…'));
   try {
     const d = await postJson('/api/civitai/lookup', { path });
+    cachePut(d.hash, d.found && d.url ? d.url : '', (d.found && d.title) || '');
     setCivState(path, target, {
       civitai: d.found && d.url ? d.url : '',
       ctitle: (d.found && d.title) || '',
