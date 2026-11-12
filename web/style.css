@@ -206,10 +206,13 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:20;
   display:flex; align-items:center; gap:12px; padding:9px 14px;
   background:var(--selbar-bg); border:1px solid var(--selbar-bd); border-radius:12px;
-  box-shadow:0 8px 30px var(--shadow); max-width:calc(100vw - 32px); flex-wrap:wrap;
+  box-shadow:0 8px 30px var(--shadow); max-width:calc(100vw - 32px); flex-wrap:nowrap;
 }
 .selcount b{color:var(--selb); font-size:15px}
-.selorder{color:var(--link); font-size:12px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+/* 名称过长时只截断它自己，不要把按钮挤到第二行 */
+.selbar .selcount,.selbar label,.selbar button{flex:0 0 auto}
+.selorder{color:var(--link); font-size:12px; flex:1 1 auto; min-width:40px;
+  max-width:min(340px,34vw); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .selbar label{font-size:12px; color:var(--dim); display:flex; align-items:center; gap:5px}
 .selbar select{background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:3px 6px}
 .chk input{accent-color:var(--accent)}
