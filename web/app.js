@@ -470,7 +470,7 @@ function ghostHTML(file, hiddenView) {
   if (card && !hiddenView) return cardHTML(card);
   const btn = hiddenView
     ? `<button class="icon" data-unhide="${esc(file.rel)}" title="${t('取消隐藏')}">↩</button>`
-    : `<button class="icon" data-claim="${esc(file.rel)}" title="${t('为它写提示词')}">＋</button>`;
+    : `<button class="icon" data-claim="${esc(file.rel)}" title="${t('新建小卡片')}">＋</button>`;
   const hint = hiddenView ? t('已隐藏，右键或点 ↩ 恢复。') : t('还没有小卡片，点 ＋ 新建。');
   const inner = card ? kidsOf(card) : `<div class="child"><div class="mid"><div class="cb">${hint}</div></div></div>`;
   return `<div class="card ghost" data-path="${esc(file.rel)}">
@@ -1156,9 +1156,11 @@ function bind() {
     const ghost = e.target.closest('.card.ghost[data-path]');
     if (ghost) {
       const rel = ghost.dataset.path;
+      // 和"有卡片"的右键保持一致的说法与顺序
       return showMenu(e, [
         { label: t('取消隐藏'), show: isHidden(rel), run: () => unhidePath(rel) },
-        { label: t('写提示词（新增一条）'), show: !isHidden(rel), run: () => claimFile(rel) },
+        { label: t('新建小卡片'), show: !isHidden(rel), run: () => claimFile(rel) },
+        { sep: true, show: !isHidden(rel) },
         { label: t('重命名 LoRA 文件…'), run: () => renamePath(rel) },
         { label: t('隐藏这个 LoRA'), show: !isHidden(rel), run: () => hidePath(rel) },
         { label: t('在资源管理器中显示'), run: () => revealPath(rel) },
