@@ -122,6 +122,29 @@ The release is **not code-signed**. SmartScreen will warn on first launch — cl
 
 最初是为了把 ComfyUI 工作流里十几个便笺（约 3 万字）抽成可检索的结构，后来一路长成了完整的 LoRA 管理器。
 
+## 发版 / Publishing
+
+维护者用，需要 `repo` 权限的 GitHub token：
+
+```powershell
+$env:GH_TOKEN = "ghp_xxx"
+powershell -File publish.ps1 -Version 0.1.4
+```
+
+它会：编译 → 组装 → 打 zip → 算 sha256 → 建 Release → 上传附件，最后打印页面地址。
+
+常用参数：
+
+| 参数 | 作用 |
+|---|---|
+| `-NotesFile notes.md` | 用自己的发布说明（默认用内置模板，记得改「更新」那段） |
+| `-Draft` | 发草稿，先自己看一眼再公开 |
+| `-SkipBuild` | 复用 `release/` 里已有的 zip |
+| `-Repo owner/name` | 默认从 `git remote` 推断 |
+| `-NoProxy` | 不走代理 |
+
+只想要 zip 不要发版：`powershell -File build-release.ps1 -Version 0.1.4`
+
 ## 许可 / License
 
 [MIT](LICENSE)
