@@ -1580,7 +1580,12 @@ function bind() {
 
   $('#btn-merge').addEventListener('click', () => {
     const t = mergedText();
-    t ? copyText(t) : toast('选中的没有正文', true);
+    if (!t) return toast('选中的没有正文', true);
+    copyText(t);
+    // 复制完清空选择并退出选中态，方便直接选下一批
+    sel = [];
+    renderMain();
+    renderSel();
   });
   $('#btn-move').addEventListener('click', openMove);
   $('#btn-clearsel').addEventListener('click', () => { sel = []; renderMain(); renderSel(); });
