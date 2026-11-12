@@ -330,13 +330,13 @@ function civState(rel, card) {
   return lib.files[rel] || {};
 }
 
-function setCivState(rel, card, patch) {
+function setCivState(rel, card, patch, silent) {
   if (card) {
     Object.assign(card, patch);
   } else {
     lib.files[rel] = Object.assign({}, lib.files[rel] || {}, patch);
   }
-  touch();
+  if (!silent) touch();
 }
 
 /* 建卡时把文件上已有的匹配结果搬进卡片 */
@@ -406,8 +406,9 @@ async function matchAll() {
       setMatchLabel(t('计算哈希…'));
       const r = await postJson('/api/hash', { paths: needHash });
       Object.keys(r.hashes || {}).forEach((rel) => {
-        setCivState(rel, cardByPath(rel), { h: r.hashes[rel] });
+        setCivState(rel, cardByPath(rel), { h: r.hashes[rel] }, true);
       });
+      touch();
     }
 
     for (const item of todo) {
@@ -416,16 +417,18 @@ async function matchAll() {
       try {
         const d = await postJson('/api/civitai/lookup', { hash: item.st.h, path: item.rel });
         const url = d.found && d.url ? d.url : '';
-        setCivState(item.rel, cardByPath(item.rel), { civitai: url, ...(d.hash ? { h: d.hash } : {}) });
+        setCivState(item.rel, cardByPath(item.rel), { civitai: url, ...(d.hash ? { h: d.hash } : {}) }, true);
         url ? run.ok++ : run.none++;
       } catch (e) {
-        setCivState(item.rel, cardByPath(item.rel), { civitai: '' });
+        setCivState(item.rel, cardByPath(item.rel), { civitai: '' }, true);
         run.none++;
       }
       run.done++;
+      if (run.done % 10 === 0) touch();   // 每 10 条存一次，别刷屏也别丢数据
       await new Promise((r2) => setTimeout(r2, 250));
     }
 
+    touch();
     render();
     const tail = run.cancelled ? t('（已中断）') : '';
     toast(t('匹配完成：') + run.ok + t(' 个有页面，') + run.none + t(' 个没有') + tail);
