@@ -203,6 +203,23 @@ const I18N = {
     '已打开模型页': 'Opened model page',
     '查询失败：': 'Lookup failed: ',
 
+    '匹配 Civitai': 'Match Civitai',
+    '给还没匹配过的 LoRA 查 Civitai 页面': 'Look up Civitai pages for unmatched LoRAs',
+    '没有需要匹配的 LoRA 了': 'Nothing left to match',
+    '检测连通…': 'Checking…',
+    '计算哈希…': 'Hashing…',
+    '匹配中 ': 'Matching ',
+    '匹配完成：': 'Done: ',
+    ' 个有页面，': ' with pages, ',
+    ' 个没有': ' without',
+    '（已中断）': ' (cancelled)',
+    '匹配失败：': 'Match failed: ',
+    '连不上 Civitai（3 秒超时），已停止': 'Cannot reach Civitai (3s timeout), stopped',
+    '刷新 Civitai 信息': 'Refresh Civitai info',
+
+    '已有 Civitai 页面': 'Has a Civitai page',
+    '查过，Civitai 上没有': 'Checked — not on Civitai',
+
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

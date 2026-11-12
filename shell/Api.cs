@@ -440,18 +440,61 @@ public static class Api
             catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
         });
 
+        app.MapPost("/api/hash", async (HttpContext ctx) =>
+        {
+            var root = ReadRoot();
+            try
+            {
+                var body = await JsonNode.ParseAsync(ctx.Request.Body);
+                var list = body?["paths"]?.AsArray();
+                if (list is null) return Results.Json(new { error = "缺 paths" }, statusCode: 400);
+
+                var map = new Dictionary<string, string>();
+                foreach (var item in list)
+                {
+                    var rel = item?.GetValue<string>() ?? "";
+                    var full = SafeFull(root, rel);
+                    if (full is null || !File.Exists(full)) continue;
+                    map[rel] = await Sha256File(full);
+                }
+                return Results.Json(new { hashes = map });
+            }
+            catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
+        });
+
+        app.MapPost("/api/civitai/ping", async () =>
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("lora-manager/0.1");
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                using var resp = await http.GetAsync("https://civitai.com/api/v1/models?limit=1", cts.Token);
+                return Results.Json(new { ok = resp.IsSuccessStatusCode, ms = sw.ElapsedMilliseconds, status = (int)resp.StatusCode });
+            }
+            catch (Exception e)
+            {
+                return Results.Json(new { ok = false, ms = sw.ElapsedMilliseconds, error = e.Message });
+            }
+        });
+
         app.MapPost("/api/civitai/lookup", async (HttpContext ctx) =>
         {
             var root = ReadRoot();
             try
             {
                 var body = await JsonNode.ParseAsync(ctx.Request.Body);
-                var rel = body?["path"]?.GetValue<string>() ?? "";
-                var full = SafeFull(root, rel);
-                if (full is null) return Results.Json(new { error = "越界路径" }, statusCode: 400);
-                if (!File.Exists(full)) return Results.Json(new { error = "文件不存在" }, statusCode: 404);
-
-                var hash = await Sha256File(full);
+                var hashIn = body?["hash"]?.GetValue<string>() ?? "";
+                var hash = hashIn;
+                if (string.IsNullOrWhiteSpace(hash))
+                {
+                    var rel = body?["path"]?.GetValue<string>() ?? "";
+                    var full = SafeFull(root, rel);
+                    if (full is null) return Results.Json(new { error = "越界路径" }, statusCode: 400);
+                    if (!File.Exists(full)) return Results.Json(new { error = "文件不存在" }, statusCode: 404);
+                    hash = await Sha256File(full);
+                }
 
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("lora-manager/0.1");

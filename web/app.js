@@ -309,17 +309,97 @@ function openUrl(url) {
 async function openCivitai(rel, card) {
   if (!rel) return;
   if (card && card.civitai) return openUrl(card.civitai);
-  toast(t('正在查 Civitai…'));
+  return rematchOne(card, rel);
+}
+
+/* ---------------- 批量匹配 Civitai ---------------- */
+/* card.civitai 三种状态：
+     undefined  -> 还没查过
+     ""         -> 查过，Civitai 上没有（下架/非 Civitai 来源）
+     "https://…" -> 查到了 */
+let matchRun = null;
+
+function needsMatch(c) {
+  return c.path && c.civitai === undefined && !isHidden(c.path);
+}
+
+function setMatchLabel(txt) {
+  const el = $('#match-label');
+  if (el) el.textContent = txt;
+}
+
+async function matchAll() {
+  if (matchRun) { matchRun.cancelled = true; return; }   // 再点一次 = 停
+
+  const todo = lib.cards.filter(needsMatch);
+  if (!todo.length) return toast(t('没有需要匹配的 LoRA 了'));
+
+  const run = { cancelled: false, total: todo.length, done: 0, ok: 0, none: 0 };
+  matchRun = run;
+  setMatchLabel(t('检测连通…'));
+
   try {
-    const d = await postJson('/api/civitai/lookup', { path: rel });
-    if (!d.found) return toast(t('Civitai 上没找到这个模型（可能已下架，或不是从 Civitai 下的）'), true);
-    if (card) {
-      card.civitai = d.url;
-      if (d.hash) card.h = d.hash;
+    const p = await postJson('/api/civitai/ping', {});
+    if (!p.ok) {
+      toast(t('连不上 Civitai（3 秒超时），已停止'), true);
+      return;
+    }
+
+    // 一次把缺的哈希都算出来
+    const needHash = todo.filter((c) => !c.h).map((c) => c.path);
+    if (needHash.length) {
+      setMatchLabel(t('计算哈希…'));
+      const r = await postJson('/api/hash', { paths: needHash });
+      Object.keys(r.hashes || {}).forEach((rel) => {
+        const c = cardByPath(rel);
+        if (c) c.h = r.hashes[rel];
+      });
       touch();
     }
-    openUrl(d.url);
-    toast(t('已打开模型页'));
+
+    for (const c of todo) {
+      if (run.cancelled) break;
+      setMatchLabel(t('匹配中 ') + (run.done + 1) + '/' + run.total);
+      try {
+        const d = await postJson('/api/civitai/lookup', { hash: c.h, path: c.path });
+        if (d.found && d.url) { c.civitai = d.url; run.ok++; }
+        else { c.civitai = ''; run.none++; }      // 查过但没有，也算"已匹配"
+      } catch (e) {
+        c.civitai = '';                             // 出错也不反复重试
+        run.none++;
+      }
+      run.done++;
+      touch();
+      await new Promise((r2) => setTimeout(r2, 250));   // 温柔一点，别把 Civitai 打疼
+    }
+
+    render();
+    const tail = run.cancelled ? t('（已中断）') : '';
+    toast(t('匹配完成：') + run.ok + t(' 个有页面，') + run.none + t(' 个没有') + tail);
+  } catch (e) {
+    toast(t('匹配失败：') + e.message, true);
+  } finally {
+    matchRun = null;
+    setMatchLabel(t('匹配 Civitai'));
+  }
+}
+
+/* 单个强制重查（右键用） */
+async function rematchOne(card, rel) {
+  const target = card || cardByPath(rel);
+  const path = rel || (target && target.path);
+  if (!path) return;
+  toast(t('正在查 Civitai…'));
+  try {
+    const d = await postJson('/api/civitai/lookup', { path });
+    if (target) {
+      if (d.hash) target.h = d.hash;
+      target.civitai = d.found && d.url ? d.url : '';
+      touch();
+      render();
+    }
+    if (d.found && d.url) { openUrl(d.url); toast(t('已打开模型页')); }
+    else toast(t('Civitai 上没有这个模型（可能已下架，或不是从 Civitai 下的）'), true);
   } catch (e) {
     toast(t('查询失败：') + e.message, true);
   }
@@ -440,6 +520,8 @@ function cardHTML(card) {
     <div class="card-head" draggable="true" data-whole="${card.id}" title="${esc(card.path || t('（没有绑定 LoRA 文件）'))}">
       <span class="title">${esc(card.title || t('(无标题)'))}${card.w ? ` <span class="wbadge">${esc(card.w)}</span>` : ''}${whole >= 0 ? ' ⑂' + (whole + 1) : ''}</span>
       <span class="n">${kids.length}</span>
+      ${card.civitai ? '<span class="civ" title="' + t('已有 Civitai 页面') + '">🔗</span>'
+        : card.civitai === '' ? '<span class="civ none" title="' + t('查过，Civitai 上没有') + '">—</span>' : ''}
       <span class="acts">
         <button class="icon" data-add-child="${card.id}" title="${t('新建小卡片')}">＋</button>
         <button class="icon" data-edit-card="${card.id}" title="${t('编辑大卡片 / 移动')}">✎</button>
@@ -1196,6 +1278,7 @@ function bind() {
         { label: t('隐藏这个 LoRA'), show: !!c.path, run: () => hidePath(c.path) },
         { label: t('在资源管理器中显示'), show: !!c.path, run: () => revealPath(c.path) },
         { label: t('在 Civitai 打开'), show: !!c.path, run: () => openCivitai(c.path, c) },
+        { label: t('刷新 Civitai 信息'), show: !!c.path, run: () => rematchOne(c, null) },
         { label: t('删除 LoRA 文件…'), danger: true, show: !!c.path, run: () => deleteLoraFile(c.path) },
         { sep: true, show: !!c.path },
         { label: t('删除大卡片'), danger: true, run: () => { lib.cards = lib.cards.filter((x) => x.id !== c.id); sel = sel.filter((k) => k.split('|')[0] !== c.id); touch(); render(); } },
@@ -1214,6 +1297,7 @@ function bind() {
         { label: t('隐藏这个 LoRA'), show: !isHidden(rel), run: () => hidePath(rel) },
         { label: t('在资源管理器中显示'), run: () => revealPath(rel) },
         { label: t('在 Civitai 打开'), run: () => openCivitai(rel, cardByPath(rel)) },
+        { label: t('刷新 Civitai 信息'), run: () => rematchOne(null, rel) },
         { sep: true },
         { label: t('删除 LoRA 文件…'), danger: true, run: () => deleteLoraFile(rel) },
       ]);
@@ -1351,6 +1435,8 @@ function bind() {
       touch(); render();
     } catch (e) { toast(t('撤销失败：') + e.message, true); }
   });
+
+  $('#btn-match').addEventListener('click', matchAll);
 
   $('#btn-root').addEventListener('click', async () => {
     const cur = lib.root || tree.root;
