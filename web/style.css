@@ -157,8 +157,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .card-head:hover{background:var(--hover2)}
 .card-head .title{font-weight:600; color:var(--fg-strong); word-break:break-word; flex:1 1 auto}
 .card-head .n{color:var(--dim); font-size:11px; flex:0 0 auto}
-.card-head .acts{display:flex; gap:2px; flex:0 0 auto; opacity:0; transition:.1s}
-.card:hover .card-head .acts{opacity:1}
+.card-head .acts{display:none; gap:2px; flex:0 0 auto}
+.card:hover .card-head .acts{display:flex}
 .card-head .acts .icon{font-size:12px; padding:2px 5px}
 
 /* ---------- 小卡片 ---------- */
@@ -349,9 +349,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 /* Civitai 状态图标：未匹配=刷新圈，已匹配=外链箭头 */
 .civ{
-  font-size:12px; line-height:1; margin-left:3px; flex:0 0 auto; cursor:pointer;
+  display:none; font-size:12px; line-height:1; margin-left:3px; flex:0 0 auto; cursor:pointer;
   padding:1px 3px; border-radius:4px; opacity:.55; transition:.12s;
 }
+.card:hover .card-head .civ{display:inline-block}
 .civ:hover{opacity:1; background:var(--hover3)}
 .civ.todo{color:var(--dim2)}
 .civ.todo:hover{color:var(--accent)}
