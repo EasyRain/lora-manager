@@ -627,17 +627,23 @@ function toggleExpand(rel) {
 function renderTree() {
   // 一律不缩进：层级用图标的深浅表示（--lv），这样再深也不会跑出侧栏
   const row = (key, icon, name, lv, cnt, extra = '') =>
-    `<div class="cat ${curDir === key ? 'active' : ''} ${extra}" data-dir="${esc(key)}"
-          style="--lv:${lv}">
+    `<div class="cat ${curDir === key ? 'active' : ''} ${extra}" data-dir="${esc(key)}">
        ${icon}<span class="dname">${esc(name)}</span><span class="cnt">${cnt}</span>
      </div>`;
-  const badge = (lv) => (lv >= 1 ? `<i class="lv">${lv}</i>` : '');
-  // 数字只在展开时显示（收起时没必要，叶子目录也不显示）
+  // 层级数字 + 分组颜色：同一个父目录下的子目录用同一种颜色，多了就循环用
+  const PALETTE = ['#e0a458', '#6aa9e9', '#7ec98a', '#c58ae0', '#e07a7a'];
+  const parentIdx = new Map();
+  const badge = (rel, lv) => {
+    if (lv < 1) return '';
+    const pi = parentIdx.get(parentOf(rel)) ?? 0;
+    return `<i class="lv" style="--lv-color:${PALETTE[pi % PALETTE.length]}">${lv}</i>`;
+  };
   const iconHTML = (rel, kids, open, lv) => kids
-    ? `<span class="ic" data-tw="${esc(rel)}" title="${open ? t('收起') : t('展开')}">${open ? '📂' : '📁'}${open ? badge(lv) : ''}</span>`
-    : '<span class="ic plain">📁</span>';
+    ? `<span class="ic" data-tw="${esc(rel)}" title="${open ? t('收起') : t('展开')}">${open ? '📂' : '📁'}${badge(rel, lv)}</span>`
+    : `<span class="ic plain">📁${badge(rel, lv)}</span>`;
 
   const dirs = [...tree.dirs].sort((a, b) => a.rel.localeCompare(b.rel, 'zh'));
+  [...new Set(dirs.map((d) => parentOf(d.rel)))].sort().forEach((p, i) => parentIdx.set(p, i));
   const hasChild = new Set();
   dirs.forEach((d) => { const p = parentOf(d.rel); if (p) hasChild.add(p); });
   const depthOf = (rel) => (rel ? rel.split('/').length : 0);
