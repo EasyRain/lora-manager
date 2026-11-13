@@ -234,6 +234,8 @@ const I18N = {
     '层': 'levels',
     '撤销移动': 'Undo move',
     '已移动到 ': 'Moved to ',
+    '回到顶部': 'Back to top',
+    '滚到底部': 'Scroll to bottom',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

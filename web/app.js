@@ -209,6 +209,14 @@ function countsText(dir) {
 
 function dirLabel(rel) { return rel ? rel.split('/').pop() : t('根目录'); }
 function dirCards(rel) { return cardsIn(rel).length; }
+/* ---------------- 滚动按钮 ---------------- */
+function updateScrollBtns() {
+  const sc = $('#scroller');
+  const box = $('#scroller-btns');
+  if (!sc || !box) return;
+  box.hidden = sc.scrollHeight - sc.clientHeight < 40;   // 内容不够高就不显示
+}
+
 function scrollTop() { const w = $('#scroller'); if (w) w.scrollTop = 0; }
 
 /* ---------------- 右键菜单 ---------------- */
@@ -949,6 +957,7 @@ function render() {
   renderMain();
   renderSel();
   $('#btn-undo').hidden = !lastMove;
+  requestAnimationFrame(updateScrollBtns);   // 内容高度变了，按钮显隐跟着变
 }
 
 /* ---------------- 拖动排序 ---------------- */
@@ -1770,6 +1779,13 @@ function bind() {
 
 
   $('#btn-undo').addEventListener('click', () => undoMove());
+
+  $('#btn-top').addEventListener('click', () => $('#scroller').scrollTo({ top: 0, behavior: 'smooth' }));
+  $('#btn-bottom').addEventListener('click', () => {
+    const sc = $('#scroller');
+    sc.scrollTo({ top: sc.scrollHeight, behavior: 'smooth' });
+  });
+  $('#scroller').addEventListener('scroll', updateScrollBtns, { passive: true });
 
   /* 侧栏宽度拖动 */
   const SIDE_KEY = 'lora.sideW';
