@@ -638,9 +638,13 @@ function renderTree() {
     const pi = parentIdx.get(parentOf(rel)) ?? 0;
     return `<i class="lv" style="--lv-color:${PALETTE[pi % PALETTE.length]}">${lv}</i>`;
   };
-  const iconHTML = (rel, kids, open, lv) => kids
-    ? `<span class="ic" data-tw="${esc(rel)}" title="${open ? t('收起') : t('展开')}">${open ? '📂' : '📁'}${badge(rel, lv)}</span>`
-    : `<span class="ic plain">📁${badge(rel, lv)}</span>`;
+  // 第一级在收起时不标数字；更深的层级一直标
+  const iconHTML = (rel, kids, open, lv) => {
+    const num = (lv >= 2 || (lv === 1 && open)) ? badge(rel, lv) : '';
+    return kids
+      ? `<span class="ic" data-tw="${esc(rel)}" title="${open ? t('收起') : t('展开')}">${open ? '📂' : '📁'}${num}</span>`
+      : `<span class="ic plain">📁${num}</span>`;
+  };
 
   const dirs = [...tree.dirs].sort((a, b) => a.rel.localeCompare(b.rel, 'zh'));
   [...new Set(dirs.map((d) => parentOf(d.rel)))].sort().forEach((p, i) => parentIdx.set(p, i));
