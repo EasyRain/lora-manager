@@ -1246,6 +1246,7 @@ async function saveCard() {
       }
     }
     c.updated = Date.now();
+    try { await loadTree(); } catch { }
   } else {
     const boundPath = editingCard.path || '';
     const c = {
@@ -1330,8 +1331,9 @@ async function doMove() {
   touch();
   $('#modal-move').hidden = true;
   sel = [];
+  try { await loadTree(); } catch { }   // 文件真的挪了位置，目录树必须跟着刷新
   render();
-  toast(fail ? `${ok} ok / ${fail} failed` : t('已复制 ') + ok, fail > 0);
+  toast(fail ? `${ok} ok / ${fail} failed` : t('已移动 ') + ok + t(' 项'), fail > 0);
 }
 
 /* ---------------- 事件 ---------------- */
@@ -1560,7 +1562,9 @@ function bind() {
       if (c) c.path = lastMove.from;
       toast(t('已撤销'));
       lastMove = null;
-      touch(); render();
+      touch();
+      try { await loadTree(); } catch { }
+      render();
     } catch (e) { toast(t('撤销失败：') + e.message, true); }
   });
 

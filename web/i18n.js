@@ -228,6 +228,8 @@ const I18N = {
     '已匹配': 'Matched',
     '无匹配：Civitai 上没有这个模型': 'No match: not on Civitai',
 
+    '已移动 ': 'Moved ',
+    ' 项': ' item(s)',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',
