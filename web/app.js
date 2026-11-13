@@ -713,6 +713,43 @@ function dirOfCard(c) {
   return c.path ? parentOf(c.path) : (c.dir || '');
 }
 
+/* ---------------- 目录前进 / 后退（鼠标侧键、Alt+←/→） ---------------- */
+let navHist = [];
+let navIdx = -1;
+
+function navPush(dir) {
+  if (navIdx >= 0 && navHist[navIdx] === dir) return;
+  navHist = navHist.slice(0, navIdx + 1);
+  navHist.push(dir);
+  if (navHist.length > 80) { navHist.shift(); }
+  navIdx = navHist.length - 1;
+}
+
+function navRender(dir) {
+  curDir = dir;
+  sel = [];
+  $('#search').value = '';
+  render();
+  scrollTop();
+  if (navHist[navIdx] !== undefined) history.replaceState({ dir }, '', '?dir=' + encodeURIComponent(dir));
+}
+
+function navBack() {
+  if (navIdx <= 0) return;
+  navIdx--;
+  navRender(navHist[navIdx]);
+}
+
+function navForward() {
+  if (navIdx < 0 || navIdx >= navHist.length - 1) return;
+  navIdx++;
+  navRender(navHist[navIdx]);
+}
+
+// 鼠标侧键由宿主窗口转发进来
+window.__navBack = navBack;
+window.__navForward = navForward;
+
 function renderMain() {
   const q = $('#search').value.trim().toLowerCase();
 
@@ -1343,12 +1380,21 @@ function bind() {
   let rz = null;
   window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderMain, 180); });
 
+  // Alt+← / Alt+→ 也能前进后退
+  window.addEventListener('keydown', (e) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); navBack(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); navForward(); }
+  });
+
   const goDir = (dir) => {
+    if (dir !== curDir) navPush(dir);
     curDir = dir;
     sel = [];
     $('#search').value = '';        // 点分类/文件夹/面包屑 = 退出搜索
     render();
     scrollTop();
+    history.replaceState({ dir }, '', '?dir=' + encodeURIComponent(dir));
   };
 
   $('#cats').addEventListener('click', (e) => { const r = e.target.closest('[data-dir]'); if (r) goDir(r.dataset.dir); });
@@ -1821,6 +1867,8 @@ function bind() {
   bind();
   migrate();
   normalize();
+  navHist = [curDir];
+  navIdx = 0;
   render();
   scrollTop();
   if (lib.savedAt) $('#saved').textContent = t('已保存 ') + lib.savedAt.slice(11, 19);

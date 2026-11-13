@@ -9,6 +9,8 @@ public class MainForm : Form
     readonly WebView2 _web;
     readonly string _url;
 
+    internal WebView2 Web => _web;
+
     public MainForm(string url)
     {
         _url = url;
@@ -26,6 +28,7 @@ public class MainForm : Form
         };
         Controls.Add(_web);
         Load += async (_, _) => await InitAsync();
+        Application.AddMessageFilter(new SideButtonFilter(this));
     }
 
     async Task InitAsync()
@@ -86,6 +89,29 @@ public class MainForm : Form
                 "\n\n这台机器可能缺少 WebView2 运行时（Edge 一般自带）。",
                 "LoRA 管理器", MessageBoxButtons.OK, MessageBoxIcon.Error);
             Close();
+        }
+    }
+
+    /// <summary>截获鼠标侧键（XBUTTON1/2），转成页面里的前进/后退。</summary>
+    sealed class SideButtonFilter : IMessageFilter
+    {
+        const int WM_XBUTTONDOWN = 0x020B;
+        readonly MainForm _form;
+
+        public SideButtonFilter(MainForm form) { _form = form; }
+
+        public bool PreFilterMessage(ref Message m)
+        {
+            if (m.Msg != WM_XBUTTONDOWN) return false;
+            var core = _form.Web.CoreWebView2;
+            if (core is null) return false;
+
+            // WParam 高 16 位 = 哪个侧键（1 = 后退，2 = 前进）
+            var which = (long)m.WParam >> 16 & 0xFFFF;
+            core.ExecuteScriptAsync(which == 1
+                ? "window.__navBack && window.__navBack()"
+                : "window.__navForward && window.__navForward()");
+            return true;   // 吃掉，别让 WebView2 再触发它自己的历史导航
         }
     }
 }
