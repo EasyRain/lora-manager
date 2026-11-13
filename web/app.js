@@ -957,9 +957,15 @@ let dragKey = null;
 async function undoMove() {
   if (!lastMove) return;
   try {
-    await moveFile(lastMove.to, parentOf(lastMove.from));
-    const c = cardByPath(lastMove.to);
-    if (c) c.path = lastMove.from;
+    if (lastMove.kind === 'dir') {
+      // 纯文本卡只是换了位置，没有文件要挪
+      const c = lib.cards.find((x) => x.id === lastMove.cardId);
+      if (c) c.dir = lastMove.fromDir;
+    } else {
+      await moveFile(lastMove.to, parentOf(lastMove.from));
+      const c = cardByPath(lastMove.to);
+      if (c) c.path = lastMove.from;
+    }
     toast(t('已撤销'));
     lastMove = null;                 // 撤完就没有可撤销的了
     touch();
@@ -981,6 +987,7 @@ async function moveCardTo(cardId, dir) {
       c.path = d.to;
     } catch (e) { return toast(e.message, true); }
   } else {
+    lastMove = { kind: 'dir', cardId: c.id, fromDir: from };
     c.dir = dir;
   }
   touch();
@@ -1427,6 +1434,7 @@ async function saveCard() {
           c.path = d.to;
         } catch (e) { return toast(e.message, true); }
       } else {
+        lastMove = { kind: 'dir', cardId: c.id, fromDir: oldDir };
         c.dir = folder;
       }
     }
@@ -1504,7 +1512,10 @@ async function doMove() {
   for (const id of ids) {
     const c = lib.cards.find((x) => x.id === id);
     if (!c) continue;
-    if (!c.path) { c.dir = folder; ok++; continue; }
+    if (!c.path) {
+      lastMove = { kind: 'dir', cardId: c.id, fromDir: c.dir || '' };
+      c.dir = folder; ok++; continue;
+    }
     if (parentOf(c.path) === folder) { ok++; continue; }
     try {
       const d = await moveFile(c.path, folder);
@@ -1588,6 +1599,8 @@ function bind() {
         { label: t('删除 LoRA 文件…'), danger: true, show: !!c.path, run: () => deleteLoraFile(c.path) },
         { sep: true, show: !!c.path },
         { label: t('删除大卡片'), danger: true, run: () => { lib.cards = lib.cards.filter((x) => x.id !== c.id); sel = sel.filter((k) => k.split('|')[0] !== c.id); touch(); render(); } },
+        { sep: true, show: !!lastMove },
+        { label: t('撤销移动'), show: !!lastMove, run: () => undoMove() },
       ]);
     }
     const ghost = e.target.closest('.card.ghost[data-path]');
