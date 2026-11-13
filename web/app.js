@@ -626,8 +626,9 @@ function toggleExpand(rel) {
 
 function renderTree() {
   // 图标即折叠开关：有子目录的是 📂/📁（可点），没有的是普通 📁
+  // 缩进封顶 4 层，再深的层级不再往外推，免得名字被挤没
   const row = (key, icon, name, depth, cnt) =>
-    `<div class="cat ${curDir === key ? 'active' : ''}" data-dir="${esc(key)}" style="padding-left:${10 + depth * 12}px">
+    `<div class="cat ${curDir === key ? 'active' : ''}" data-dir="${esc(key)}" style="padding-left:${10 + Math.min(depth, 4) * 12}px">
        ${icon}<span class="dname">${esc(name)}</span><span class="cnt">${cnt}</span>
      </div>`;
   const iconHTML = (rel, kids, open) => kids
