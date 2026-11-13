@@ -602,10 +602,13 @@ async function uploadFiles(files, dir) {
 /* ---------------- 侧栏目录树 ---------------- */
 /* ---------------- 左栏目录树：可折叠 ---------------- */
 const EXPAND_KEY = 'lora.treeExpanded';
+const ROOT_OPEN_KEY = 'lora.treeRootOpen';
 let treeExpanded = new Set(JSON.parse(localStorage.getItem(EXPAND_KEY) || '[]'));
+let rootOpen = localStorage.getItem(ROOT_OPEN_KEY) !== '0';   // 根目录默认展开
 
 function saveExpand() {
   localStorage.setItem(EXPAND_KEY, JSON.stringify([...treeExpanded]));
+  localStorage.setItem(ROOT_OPEN_KEY, rootOpen ? '1' : '0');
 }
 /* 进入某个目录时，把它的所有上级都展开，免得看不见自己 */
 function expandPath(dir) {
@@ -614,19 +617,21 @@ function expandPath(dir) {
   saveExpand();
 }
 function toggleExpand(rel) {
-  if (treeExpanded.has(rel)) treeExpanded.delete(rel);
+  if (rel === '') rootOpen = !rootOpen;
+  else if (treeExpanded.has(rel)) treeExpanded.delete(rel);
   else treeExpanded.add(rel);
   saveExpand();
   renderTree();
 }
 
 function renderTree() {
-  const row = (key, label, depth, cnt, tw = '<span class="tw"></span>') =>
+  const row = (key, label, depth, cnt, tw = '<span class="tw empty"></span>') =>
     `<div class="cat ${curDir === key ? 'active' : ''}" data-dir="${esc(key)}" style="padding-left:${10 + depth * 12}px">
        ${tw}<span class="dname">${label}</span><span class="cnt">${cnt}</span>
      </div>`;
 
-  let html = row('', '🗂 ' + t('根目录'), 0, treeCardCount(''), '<span class="tw"></span>');
+  const rootTw = `<span class="tw ${rootOpen ? 'open' : ''}" data-tw=""></span>`;
+  let html = row('', '🗂 ' + t('根目录'), 0, treeCardCount(''), rootTw);
   const dirs = [...tree.dirs].sort((a, b) => a.rel.localeCompare(b.rel, 'zh'));
 
   // 可见性：上级都展开才显示（根目录永远展开）
@@ -635,7 +640,8 @@ function renderTree() {
   dirs.forEach((d) => { const p = parentOf(d.rel); if (p) hasChild.add(p); });
   dirs.forEach((d) => {
     const p = parentOf(d.rel);
-    if (shown.has(p) && (p === '' || treeExpanded.has(p))) shown.add(d.rel);
+    const open = p === '' ? rootOpen : treeExpanded.has(p);
+    if (shown.has(p) && open) shown.add(d.rel);
   });
 
   dirs.forEach((d) => {
@@ -643,8 +649,8 @@ function renderTree() {
     const kids = hasChild.has(d.rel);
     const open = treeExpanded.has(d.rel);
     const tw = kids
-      ? `<span class="tw ${open ? 'open' : ''}" data-tw="${esc(d.rel)}">${open ? '▾' : '▸'}</span>`
-      : '<span class="tw"></span>';
+      ? `<span class="tw ${open ? 'open' : ''}" data-tw="${esc(d.rel)}"></span>`
+      : '<span class="tw empty"></span>';
     html += row(d.rel, '📁 ' + esc(d.name), (d.depth || 1) - 1, treeCardCount(d.rel), tw);
   });
   const hid = lib.hidden.length;

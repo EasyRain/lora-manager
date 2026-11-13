@@ -363,14 +363,23 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .civ.todo:hover{color:var(--accent)}
 .civ[data-civ-open]{color:var(--link)}
 
-/* 左栏目录树的折叠三角 */
+/* 左栏目录树的折叠箭头：用边框画一个「>」，展开时转成「v」 */
 .cat .tw{
-  display:inline-block; width:14px; flex:0 0 14px; margin-right:2px;
-  font-size:10px; line-height:1; color:var(--dim2); text-align:center;
-  cursor:pointer; user-select:none; transition:color .12s;
+  display:inline-flex; align-items:center; justify-content:center;
+  width:18px; height:18px; flex:0 0 18px; margin-right:2px;
+  color:var(--dim2); cursor:pointer; user-select:none;
+  border-radius:4px; transition:color .12s, background .12s;
 }
-.cat .tw:hover{color:var(--accent)}
-.cat .tw.open{color:var(--dim)}
+.cat .tw::before{
+  content:''; width:7px; height:7px; margin-left:-2px;
+  border-right:1.9px solid currentColor; border-bottom:1.9px solid currentColor;
+  border-radius:1px;
+  transform:rotate(-45deg);            /* > */
+  transition:transform .15s ease;
+}
+.cat .tw.open::before{ transform:rotate(45deg); margin-left:0; margin-top:-3px; }   /* v */
+.cat .tw:hover{color:var(--accent); background:var(--hover3)}
+.cat .tw.empty{visibility:hidden}      /* 没有子目录时留空占位，保持对齐 */
 
 /* 侧栏右边缘：拖动改宽度 */
 .sidegrip{width:6px; flex:0 0 6px; margin-left:-6px; cursor:col-resize; z-index:6; position:relative}
