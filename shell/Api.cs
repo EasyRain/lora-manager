@@ -128,7 +128,7 @@ public static class Api
 
     static void Walk(string root, string dir, List<object> dirs, List<object> files, int depth)
     {
-        if (depth > 6) return;
+        if (depth > 24) return;   // 只是防环保险；显示层级由前端的滑动窗口控制
         IEnumerable<string> subs, fs;
         try
         {

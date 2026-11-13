@@ -624,42 +624,63 @@ function toggleExpand(rel) {
   renderTree();
 }
 
+const MAX_TREE_LAYERS = 6;   // 同时最多显示几层，超出的上级依次隐藏
+
 function renderTree() {
   // 图标即折叠开关：有子目录的是 📂/📁（可点），没有的是普通 📁
-  // 缩进封顶 4 层，再深的层级不再往外推，免得名字被挤没
-  const row = (key, icon, name, depth, cnt) =>
-    `<div class="cat ${curDir === key ? 'active' : ''}" data-dir="${esc(key)}" style="padding-left:${10 + Math.min(depth, 4) * 12}px">
+  const row = (key, icon, name, pad, cnt, extra = '') =>
+    `<div class="cat ${curDir === key ? 'active' : ''} ${extra}" data-dir="${esc(key)}" style="padding-left:${pad}px">
        ${icon}<span class="dname">${esc(name)}</span><span class="cnt">${cnt}</span>
      </div>`;
   const iconHTML = (rel, kids, open) => kids
     ? `<span class="ic" data-tw="${esc(rel)}" title="${open ? t('收起') : t('展开')}">${open ? '📂' : '📁'}</span>`
     : '<span class="ic plain">📁</span>';
 
-  // 根目录图标固定不变
-  // 根目录：图标始终是 🗂 不变，但点它可以收起/展开下面的目录
-  let html = row('', '<span class="ic" data-tw="" title="' + t('展开') + ' / ' + t('收起') + '">🗂</span>',
-                 t('根目录'), 0, treeCardCount(''));
   const dirs = [...tree.dirs].sort((a, b) => a.rel.localeCompare(b.rel, 'zh'));
-
-  // 可见性：上级都展开才显示（根目录永远展开）
-  const shown = new Set(['']);
   const hasChild = new Set();
   dirs.forEach((d) => { const p = parentOf(d.rel); if (p) hasChild.add(p); });
+  const depthOf = (rel) => (rel ? rel.split('/').length : 0);
+
+  // 1. 先按展开状态算出该显示哪些（不管窗口）
+  const shown = new Set(['']);
   dirs.forEach((d) => {
     const p = parentOf(d.rel);
     const open = p === '' ? rootOpen : treeExpanded.has(p);
     if (shown.has(p) && open) shown.add(d.rel);
   });
 
+  // 2. 最深的可见层级（层级从 0 = 根目录算）；当前目录也算进去
+  let deepest = depthOf(curDir);
+  shown.forEach((rel) => { const n = depthOf(rel); if (n > deepest) deepest = n; });
+
+  // 3. 超出上限就整体上移，只显示最近 MAX_TREE_LAYERS 层
+  const startDepth = Math.max(0, deepest - (MAX_TREE_LAYERS - 1));
+  const indent = (depth) => 10 + (depth - startDepth) * 10;
+
+  let html = '';
+  if (startDepth === 0) {
+    // 根目录：图标始终是 🗂 不变，但点它可以收起/展开下面的目录
+    html += row('', '<span class="ic" data-tw="" title="' + t('展开') + ' / ' + t('收起') + '">🗂</span>',
+                t('根目录'), indent(0), treeCardCount(''));
+  } else {
+    // 上层已被隐藏，给一个能点回去的入口
+    const anchor = curDir || [...shown].sort((a, b) => depthOf(b) - depthOf(a))[0] || '';
+    const up = anchor.split('/').slice(0, startDepth).join('/');
+    html += row(up, '<span class="ic plain">⋯</span>', t('上层') + '（' + startDepth + '）',
+                indent(startDepth), '', 'dim');
+  }
+
   dirs.forEach((d) => {
     if (!shown.has(d.rel)) return;
+    const depth = depthOf(d.rel);
+    if (depth < startDepth) return;                 // 窗口外的上级隐藏
     const kids = hasChild.has(d.rel);
     const open = treeExpanded.has(d.rel);
-    html += row(d.rel, iconHTML(d.rel, kids, open), d.name, (d.depth || 1) - 1, treeCardCount(d.rel));
+    html += row(d.rel, iconHTML(d.rel, kids, open), d.name, indent(depth), treeCardCount(d.rel));
   });
-  const hid = lib.hidden.length;
-  // 「隐藏」不单独分类，固定在左栏最底部
-  const foot = row(HIDDEN, '<span class="ic plain">🙈</span>', t('隐藏'), 0, hid);
+
+  // 「隐藏」固定在左栏最底部
+  const foot = row(HIDDEN, '<span class="ic plain">🙈</span>', t('隐藏'), 10, lib.hidden.length);
 
   const cats = $('#cats-list');
   if (!cats) { $('#cats').innerHTML = html + foot; return; }
@@ -668,6 +689,7 @@ function renderTree() {
   cats.scrollTop = keep;          // 左栏也别跳回顶部
   $('#cats-foot').innerHTML = foot;
 }
+
 
 /* ---------------- 主区 ---------------- */
 function childHTML(card, k) {
