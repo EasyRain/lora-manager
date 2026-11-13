@@ -655,6 +655,19 @@ function renderTree() {
 
   // 3. 超出上限就整体上移，只显示最近 MAX_TREE_LAYERS 层
   const startDepth = Math.max(0, deepest - (MAX_TREE_LAYERS - 1));
+  const anchor = curDir || [...shown].sort((a, b) => depthOf(b) - depthOf(a))[0] || '';
+  const isAncestor = (rel) => rel !== '' && anchor.startsWith(rel + '/');
+
+  // 比窗口更浅、又不是当前路径祖先的（比如根下其它独立文件夹）不隐藏，
+  // 而是对齐到窗口最上层，这样还能直接切过去
+  const anchorTop = anchor.split('/')[0];
+  const displayDepth = (rel, depth) => {
+    if (depth >= startDepth) return depth;
+    if (isAncestor(rel)) return null;            // 祖先交给「上层」那一行代表
+    // 同一个顶层分支里的旁支，直接对齐到窗口最上层；
+    // 完全不同的顶层分支，保留它自己的层级（叠在窗口最上层之上）
+    return startDepth + (rel.split('/')[0] === anchorTop ? 0 : depth - 1);
+  };
   const indent = (depth) => 10 + (depth - startDepth) * 10;
 
   let html = '';
@@ -663,8 +676,7 @@ function renderTree() {
     html += row('', '<span class="ic" data-tw="" title="' + t('展开') + ' / ' + t('收起') + '">🗂</span>',
                 t('根目录'), indent(0), treeCardCount(''));
   } else {
-    // 上层已被隐藏，给一个能点回去的入口
-    const anchor = curDir || [...shown].sort((a, b) => depthOf(b) - depthOf(a))[0] || '';
+    // 当前路径的上级被折叠起来了，给一个能点回去的入口
     const up = anchor.split('/').slice(0, startDepth).join('/');
     html += row(up, '<span class="ic plain">⋯</span>', t('上层') + '（' + startDepth + '）',
                 indent(startDepth), '', 'dim');
@@ -673,10 +685,11 @@ function renderTree() {
   dirs.forEach((d) => {
     if (!shown.has(d.rel)) return;
     const depth = depthOf(d.rel);
-    if (depth < startDepth) return;                 // 窗口外的上级隐藏
+    const dd = displayDepth(d.rel, depth);
+    if (dd === null) return;
     const kids = hasChild.has(d.rel);
     const open = treeExpanded.has(d.rel);
-    html += row(d.rel, iconHTML(d.rel, kids, open), d.name, indent(depth), treeCardCount(d.rel));
+    html += row(d.rel, iconHTML(d.rel, kids, open), d.name, indent(dd), treeCardCount(d.rel));
   });
 
   // 「隐藏」固定在左栏最底部
