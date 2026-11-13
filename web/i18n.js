@@ -231,6 +231,7 @@ const I18N = {
     '已移动 ': 'Moved ',
     ' 项': ' item(s)',
     '含子文件夹 ': 'In subfolders: ',
+    '层': 'levels',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

@@ -624,10 +624,9 @@ function toggleExpand(rel) {
   renderTree();
 }
 
-const MAX_TREE_LAYERS = 6;   // 同时最多显示几层，超出的上级依次隐藏
+const TAIL_LAYERS = 5;   // 当前分支最多显示最下面 5 层，中间的祖先收成一行集合点
 
 function renderTree() {
-  // 图标即折叠开关：有子目录的是 📂/📁（可点），没有的是普通 📁
   const row = (key, icon, name, pad, cnt, extra = '') =>
     `<div class="cat ${curDir === key ? 'active' : ''} ${extra}" data-dir="${esc(key)}" style="padding-left:${pad}px">
        ${icon}<span class="dname">${esc(name)}</span><span class="cnt">${cnt}</span>
@@ -641,7 +640,7 @@ function renderTree() {
   dirs.forEach((d) => { const p = parentOf(d.rel); if (p) hasChild.add(p); });
   const depthOf = (rel) => (rel ? rel.split('/').length : 0);
 
-  // 1. 先按展开状态算出该显示哪些（不管窗口）
+  // 该显示哪些（只看展开状态）
   const shown = new Set(['']);
   dirs.forEach((d) => {
     const p = parentOf(d.rel);
@@ -649,59 +648,56 @@ function renderTree() {
     if (shown.has(p) && open) shown.add(d.rel);
   });
 
-  // 2. 最深的可见层级（层级从 0 = 根目录算）；当前目录也算进去
+  // 当前分支的深度 → 决定哪几层被收起来
   let deepest = depthOf(curDir);
   shown.forEach((rel) => { const n = depthOf(rel); if (n > deepest) deepest = n; });
+  const tailStart = Math.max(2, deepest - (TAIL_LAYERS - 1));   // 从这层起正常显示
+  const segs = (curDir || '').split('/').filter(Boolean);
+  const collapseFrom = 2, collapseTo = tailStart - 1;
+  const hidden = Math.max(0, collapseTo - collapseFrom + 1);
+  const collapserRel = hidden > 0 ? segs.slice(0, collapseFrom).join('/') : '';
 
-  // 3. 超出上限就整体上移，只显示最近 MAX_TREE_LAYERS 层
-  const startDepth = Math.max(0, deepest - (MAX_TREE_LAYERS - 1));
-  const anchor = curDir || [...shown].sort((a, b) => depthOf(b) - depthOf(a))[0] || '';
-  const isAncestor = (rel) => rel !== '' && anchor.startsWith(rel + '/');
+  const indentTop = (d) => 10 + (d - 1) * 10;
+  const indentTail = (d) => 20 + (d - tailStart + 1) * 10;
 
-  // 比窗口更浅、又不是当前路径祖先的（比如根下其它独立文件夹）不隐藏，
-  // 而是对齐到窗口最上层，这样还能直接切过去
-  const anchorTop = anchor.split('/')[0];
-  const displayDepth = (rel, depth) => {
-    if (depth >= startDepth) return depth;
-    if (isAncestor(rel)) return null;            // 祖先交给「上层」那一行代表
-    // 同一个顶层分支里的旁支，直接对齐到窗口最上层；
-    // 完全不同的顶层分支，保留它自己的层级（叠在窗口最上层之上）
-    return startDepth + (rel.split('/')[0] === anchorTop ? 0 : depth - 1);
-  };
-  const indent = (depth) => 10 + (depth - startDepth) * 10;
+  let html = row('', '<span class="ic" data-tw="" title="' + t('展开') + ' / ' + t('收起') + '">🗂</span>',
+                 t('根目录'), 10, treeCardCount(''));
 
-  let html = '';
-  if (startDepth === 0) {
-    // 根目录：图标始终是 🗂 不变，但点它可以收起/展开下面的目录
-    html += row('', '<span class="ic" data-tw="" title="' + t('展开') + ' / ' + t('收起') + '">🗂</span>',
-                t('根目录'), indent(0), treeCardCount(''));
-  } else {
-    // 当前路径的上级被折叠起来了，给一个能点回去的入口
-    const up = anchor.split('/').slice(0, startDepth).join('/');
-    html += row(up, '<span class="ic plain">⋯</span>', t('上层') + '（' + startDepth + '）',
-                indent(startDepth), '', 'dim');
-  }
-
+  const rows = [];
   dirs.forEach((d) => {
     if (!shown.has(d.rel)) return;
     const depth = depthOf(d.rel);
-    const dd = displayDepth(d.rel, depth);
-    if (dd === null) return;
-    const kids = hasChild.has(d.rel);
-    const open = treeExpanded.has(d.rel);
-    html += row(d.rel, iconHTML(d.rel, kids, open), d.name, indent(dd), treeCardCount(d.rel));
+    if (hidden > 0 && depth >= collapseFrom && depth <= collapseTo) return;   // 被收起
+    const pad = depth >= tailStart ? indentTail(depth) : indentTop(depth);
+    rows.push({ depth, html: row(d.rel, iconHTML(d.rel, hasChild.has(d.rel), treeExpanded.has(d.rel)),
+                                 d.name, pad, treeCardCount(d.rel)) });
   });
 
-  // 「隐藏」固定在左栏最底部
+  // 集合点插在「被收起那段」的位置：第一个 tail 行之前
+  if (hidden > 0) {
+    const title = segs.slice(collapseFrom - 1, collapseTo).join(' / ');
+    const collapser =
+      `<div class="cat dim" data-collapse="1" data-dir="${esc(collapserRel)}" title="${esc(title)}" style="padding-left:20px">
+         <span class="ic plain">⋯</span><span class="dname">${t('上层')}（${hidden} ${t('层')}）</span><span class="cnt"></span>
+       </div>`;
+    const at = rows.findIndex((r) => r.depth >= tailStart);
+    if (at < 0) rows.push({ depth: collapseFrom, html: collapser });
+    else rows.splice(at, 0, { depth: collapseFrom, html: collapser });
+  }
+
+  html += rows.map((r) => r.html).join('');
+
   const foot = row(HIDDEN, '<span class="ic plain">🙈</span>', t('隐藏'), 10, lib.hidden.length);
 
   const cats = $('#cats-list');
   if (!cats) { $('#cats').innerHTML = html + foot; return; }
   const keep = cats.scrollTop;
   cats.innerHTML = html;
-  cats.scrollTop = keep;          // 左栏也别跳回顶部
+  cats.scrollTop = keep;
   $('#cats-foot').innerHTML = foot;
 }
+
+
 
 
 /* ---------------- 主区 ---------------- */
