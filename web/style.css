@@ -95,9 +95,12 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ---------- 布局 ---------- */
 .layout{flex:1 1 auto; display:flex; min-height:0}
 .sidebar{
-  width:172px; flex:0 0 auto; padding:10px 6px; overflow-y:auto;
+  width:172px; flex:0 0 auto; padding:10px 6px 6px; overflow:hidden;
   background:var(--panel); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; min-height:0;
 }
+.sidebar .cats-list{flex:1 1 auto; overflow-y:auto; min-height:0}
+.sidebar .cats-foot{flex:0 0 auto; margin-top:6px; padding-top:6px; border-top:1px solid var(--line)}
 .cat{
   display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:7px;
   cursor:pointer; color:var(--dim); user-select:none;

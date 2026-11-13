@@ -657,12 +657,15 @@ function renderTree() {
     html += row(d.rel, iconHTML(d.rel, kids, open), d.name, (d.depth || 1) - 1, treeCardCount(d.rel));
   });
   const hid = lib.hidden.length;
-  html += '<div class="cat-title">' + t('其它') + '</div>';
-  html += row(HIDDEN, '<span class="ic plain">🙈</span>', t('隐藏'), 0, hid);
-  const cats = $('#cats');
+  // 「隐藏」不单独分类，固定在左栏最底部
+  const foot = row(HIDDEN, '<span class="ic plain">🙈</span>', t('隐藏'), 0, hid);
+
+  const cats = $('#cats-list');
+  if (!cats) { $('#cats').innerHTML = html + foot; return; }
   const keep = cats.scrollTop;
   cats.innerHTML = html;
   cats.scrollTop = keep;          // 左栏也别跳回顶部
+  $('#cats-foot').innerHTML = foot;
 }
 
 /* ---------------- 主区 ---------------- */
