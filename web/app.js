@@ -625,13 +625,19 @@ function toggleExpand(rel) {
 }
 
 function renderTree() {
-  const row = (key, label, depth, cnt, tw = '<span class="tw empty"></span>') =>
+  // 图标即折叠开关：有子目录的是 📂/📁（可点），没有的是普通 📁
+  const row = (key, icon, name, depth, cnt) =>
     `<div class="cat ${curDir === key ? 'active' : ''}" data-dir="${esc(key)}" style="padding-left:${10 + depth * 12}px">
-       ${tw}<span class="dname">${label}</span><span class="cnt">${cnt}</span>
+       ${icon}<span class="dname">${esc(name)}</span><span class="cnt">${cnt}</span>
      </div>`;
+  const iconHTML = (rel, kids, open) => kids
+    ? `<span class="ic" data-tw="${esc(rel)}" title="${open ? t('收起') : t('展开')}">${open ? '📂' : '📁'}</span>`
+    : '<span class="ic plain">📁</span>';
 
-  const rootTw = `<span class="tw ${rootOpen ? 'open' : ''}" data-tw=""></span>`;
-  let html = row('', '🗂 ' + t('根目录'), 0, treeCardCount(''), rootTw);
+  // 根目录图标固定不变
+  // 根目录：图标始终是 🗂 不变，但点它可以收起/展开下面的目录
+  let html = row('', '<span class="ic" data-tw="" title="' + t('展开') + ' / ' + t('收起') + '">🗂</span>',
+                 t('根目录'), 0, treeCardCount(''));
   const dirs = [...tree.dirs].sort((a, b) => a.rel.localeCompare(b.rel, 'zh'));
 
   // 可见性：上级都展开才显示（根目录永远展开）
@@ -648,14 +654,11 @@ function renderTree() {
     if (!shown.has(d.rel)) return;
     const kids = hasChild.has(d.rel);
     const open = treeExpanded.has(d.rel);
-    const tw = kids
-      ? `<span class="tw ${open ? 'open' : ''}" data-tw="${esc(d.rel)}"></span>`
-      : '<span class="tw empty"></span>';
-    html += row(d.rel, '📁 ' + esc(d.name), (d.depth || 1) - 1, treeCardCount(d.rel), tw);
+    html += row(d.rel, iconHTML(d.rel, kids, open), d.name, (d.depth || 1) - 1, treeCardCount(d.rel));
   });
   const hid = lib.hidden.length;
   html += '<div class="cat-title">' + t('其它') + '</div>';
-  html += row(HIDDEN, '🙈 ' + t('隐藏'), 0, hid);
+  html += row(HIDDEN, '<span class="ic plain">🙈</span>', t('隐藏'), 0, hid);
   const cats = $('#cats');
   const keep = cats.scrollTop;
   cats.innerHTML = html;
