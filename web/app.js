@@ -624,11 +624,11 @@ function toggleExpand(rel) {
   renderTree();
 }
 
-const TAIL_LAYERS = 5;   // 当前分支最多显示最下面 5 层，中间的祖先收成一行集合点
+const TAIL_LAYERS = 5;   // 当前分支最多显示最下面 5 层，中间的祖先收成一行占位
 
 function renderTree() {
-  const row = (key, icon, name, pad, cnt, extra = '') =>
-    `<div class="cat ${curDir === key ? 'active' : ''} ${extra}" data-dir="${esc(key)}" style="padding-left:${pad}px">
+  const row = (key, icon, name, pad, cnt, extra = '', attrs = '') =>
+    `<div class="cat ${curDir === key ? 'active' : ''} ${extra}" data-dir="${esc(key)}" ${attrs} style="padding-left:${pad}px">
        ${icon}<span class="dname">${esc(name)}</span><span class="cnt">${cnt}</span>
      </div>`;
   const iconHTML = (rel, kids, open) => kids
@@ -636,6 +636,7 @@ function renderTree() {
     : '<span class="ic plain">📁</span>';
 
   const dirs = [...tree.dirs].sort((a, b) => a.rel.localeCompare(b.rel, 'zh'));
+  const order = new Map(dirs.map((d, i) => [d.rel, i]));
   const hasChild = new Set();
   dirs.forEach((d) => { const p = parentOf(d.rel); if (p) hasChild.add(p); });
   const depthOf = (rel) => (rel ? rel.split('/').length : 0);
@@ -648,46 +649,69 @@ function renderTree() {
     if (shown.has(p) && open) shown.add(d.rel);
   });
 
-  // 当前分支的深度 → 决定哪几层被收起来
+  // 当前分支太深时，中间的祖先层要被收成占位行
   let deepest = depthOf(curDir);
   shown.forEach((rel) => { const n = depthOf(rel); if (n > deepest) deepest = n; });
-  const tailStart = Math.max(2, deepest - (TAIL_LAYERS - 1));   // 从这层起正常显示
-  const segs = (curDir || '').split('/').filter(Boolean);
+  const tailStart = Math.max(2, deepest - (TAIL_LAYERS - 1));
   const collapseFrom = 2, collapseTo = tailStart - 1;
-  const hidden = Math.max(0, collapseTo - collapseFrom + 1);
-  const collapserRel = hidden > 0 ? segs.slice(0, collapseFrom).join('/') : '';
+
+  const hiddenSet = new Set();
+  if (collapseTo >= collapseFrom && curDir) {
+    const segs = curDir.split('/');
+    for (let d = collapseFrom; d <= collapseTo && d <= segs.length; d++) {
+      hiddenSet.add(segs.slice(0, d).join('/'));
+    }
+  }
+  const firstHiddenOf = (rel) => {
+    const segs = rel.split('/');
+    for (let d = 1; d <= segs.length; d++) {
+      const p = segs.slice(0, d).join('/');
+      if (hiddenSet.has(p)) return p;
+    }
+    return null;
+  };
 
   const indentTop = (d) => 10 + (d - 1) * 10;
   const indentTail = (d) => 20 + (d - tailStart + 1) * 10;
 
-  let html = row('', '<span class="ic" data-tw="" title="' + t('展开') + ' / ' + t('收起') + '">🗂</span>',
-                 t('根目录'), 10, treeCardCount(''));
+  const out = [];
+  const emitted = new Set();
+  out.push(row('', '<span class="ic" data-tw="" title="' + t('展开') + ' / ' + t('收起') + '">🗂</span>',
+               t('根目录'), 10, treeCardCount('')));
 
-  const rows = [];
   dirs.forEach((d) => {
     if (!shown.has(d.rel)) return;
+    if (hiddenSet.has(d.rel)) return;                 // 被占位行代表的祖先，自己不出现
+
     const depth = depthOf(d.rel);
-    // 只收起「通往当前目录的那一条链」，同级的其它文件夹照常显示
-    if (hidden > 0 && depth >= collapseFrom && depth <= collapseTo && curDir.startsWith(d.rel + '/')) return;
+    const firstHidden = firstHiddenOf(d.rel);
+
+    if (firstHidden) {
+      // 挂在占位行下面：先确保占位行已经出现
+      if (!emitted.has(firstHidden)) {
+        emitted.add(firstHidden);
+        const hd = depthOf(firstHidden);
+        const segs = curDir.split('/');
+        const title = segs.slice(hd - 1, collapseTo).join(' / ');
+        out.push(`<div class="cat dim" data-collapse="1" data-dir="${esc(firstHidden)}"
+                        title="${esc(title)}" style="padding-left:${indentTop(hd)}px">
+                    <span class="ic plain">⋯</span><span class="dname">${t('上层')}（${collapseTo - hd + 1} ${t('层')}）</span><span class="cnt"></span>
+                  </div>`);
+      }
+      const pad = curDir.startsWith(d.rel + '/') || curDir === d.rel
+        ? indentTail(depth)
+        : indentTop(depthOf(firstHidden)) + 10;
+      out.push(row(d.rel, iconHTML(d.rel, hasChild.has(d.rel), treeExpanded.has(d.rel)),
+                   d.name, pad, treeCardCount(d.rel)));
+      return;
+    }
+
     const pad = depth >= tailStart ? indentTail(depth) : indentTop(depth);
-    rows.push({ depth, html: row(d.rel, iconHTML(d.rel, hasChild.has(d.rel), treeExpanded.has(d.rel)),
-                                 d.name, pad, treeCardCount(d.rel)) });
+    out.push(row(d.rel, iconHTML(d.rel, hasChild.has(d.rel), treeExpanded.has(d.rel)),
+                 d.name, pad, treeCardCount(d.rel)));
   });
 
-  // 集合点插在「被收起那段」的位置：第一个 tail 行之前
-  if (hidden > 0) {
-    const title = segs.slice(collapseFrom - 1, collapseTo).join(' / ');
-    const collapser =
-      `<div class="cat dim" data-collapse="1" data-dir="${esc(collapserRel)}" title="${esc(title)}" style="padding-left:20px">
-         <span class="ic plain">⋯</span><span class="dname">${t('上层')}（${hidden} ${t('层')}）</span><span class="cnt"></span>
-       </div>`;
-    const at = rows.findIndex((r) => r.depth >= tailStart);
-    if (at < 0) rows.push({ depth: collapseFrom, html: collapser });
-    else rows.splice(at, 0, { depth: collapseFrom, html: collapser });
-  }
-
-  html += rows.map((r) => r.html).join('');
-
+  let html = out.join('');
   const foot = row(HIDDEN, '<span class="ic plain">🙈</span>', t('隐藏'), 10, lib.hidden.length);
 
   const cats = $('#cats-list');
@@ -697,6 +721,7 @@ function renderTree() {
   cats.scrollTop = keep;
   $('#cats-foot').innerHTML = foot;
 }
+
 
 
 
