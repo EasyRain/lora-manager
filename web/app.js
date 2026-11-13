@@ -1546,7 +1546,11 @@ function bind() {
   $('#search').addEventListener('input', renderMain);
 
   let rz = null;
-  window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderMain, 180); });
+  window.addEventListener('resize', () => {
+    updateScrollBtns();
+    clearTimeout(rz);
+    rz = setTimeout(() => { renderMain(); updateScrollBtns(); }, 180);
+  });
 
   // Alt+← / Alt+→ 也能前进后退
   window.addEventListener('keydown', (e) => {
@@ -1786,6 +1790,9 @@ function bind() {
     sc.scrollTo({ top: sc.scrollHeight, behavior: 'smooth' });
   });
   $('#scroller').addEventListener('scroll', updateScrollBtns, { passive: true });
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => updateScrollBtns()).observe($('#scroller'));
+  }
 
   /* 侧栏宽度拖动 */
   const SIDE_KEY = 'lora.sideW';
