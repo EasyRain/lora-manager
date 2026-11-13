@@ -183,6 +183,30 @@ function dirsIn(dir) {
 function cardsIn(dir) {
   return lib.cards.filter((c) => (c.path ? parentOf(c.path) === dir && !isHidden(c.path) : (c.dir || '') === dir));
 }
+/* 左栏：本层没有卡片就用子树的，别显示 0 */
+function treeCardCount(rel) {
+  const direct = dirCards(rel);
+  if (direct) return direct;
+  let n = 0;
+  subtreeDirs(rel).forEach((d) => { n += dirCards(d); });
+  return n;
+}
+
+/* 当前层没有、子文件夹里有时，用这个给出递归数量，别让文件夹看着像空的 */
+function countsText(dir) {
+  const direct = { lo: filesIn(dir).length, cd: cardsIn(dir).length };
+  if (direct.lo || direct.cd || !dirsIn(dir).length) {
+    return direct.lo + t('个 LoRA · ') + direct.cd + t(' 张卡');
+  }
+  const dirs = subtreeDirs(dir);
+  let lo = 0, cd = 0;
+  dirs.forEach((d) => {
+    lo += tree.files.filter((f) => parentOf(f.rel) === d && !isHidden(f.rel)).length;
+    cd += lib.cards.filter((c) => (c.path ? parentOf(c.path) === d && !isHidden(c.path) : (c.dir || '') === d)).length;
+  });
+  return t('含子文件夹 ') + lo + t('个 LoRA · ') + cd + t(' 张卡');
+}
+
 function dirLabel(rel) { return rel ? rel.split('/').pop() : t('根目录'); }
 function dirCards(rel) { return cardsIn(rel).length; }
 function scrollTop() { const w = $('#scroller'); if (w) w.scrollTop = 0; }
@@ -576,16 +600,52 @@ async function uploadFiles(files, dir) {
 }
 
 /* ---------------- 侧栏目录树 ---------------- */
+/* ---------------- 左栏目录树：可折叠 ---------------- */
+const EXPAND_KEY = 'lora.treeExpanded';
+let treeExpanded = new Set(JSON.parse(localStorage.getItem(EXPAND_KEY) || '[]'));
+
+function saveExpand() {
+  localStorage.setItem(EXPAND_KEY, JSON.stringify([...treeExpanded]));
+}
+/* 进入某个目录时，把它的所有上级都展开，免得看不见自己 */
+function expandPath(dir) {
+  let p = parentOf(dir);
+  while (p) { treeExpanded.add(p); p = parentOf(p); }
+  saveExpand();
+}
+function toggleExpand(rel) {
+  if (treeExpanded.has(rel)) treeExpanded.delete(rel);
+  else treeExpanded.add(rel);
+  saveExpand();
+  renderTree();
+}
+
 function renderTree() {
-  const row = (key, label, depth, cnt) =>
+  const row = (key, label, depth, cnt, tw = '<span class="tw"></span>') =>
     `<div class="cat ${curDir === key ? 'active' : ''}" data-dir="${esc(key)}" style="padding-left:${10 + depth * 12}px">
-       <span class="dname">${label}</span><span class="cnt">${cnt}</span>
+       ${tw}<span class="dname">${label}</span><span class="cnt">${cnt}</span>
      </div>`;
 
-  let html = row('', '🗂 ' + t('根目录'), 0, dirCards(''));
+  let html = row('', '🗂 ' + t('根目录'), 0, treeCardCount(''), '<span class="tw"></span>');
   const dirs = [...tree.dirs].sort((a, b) => a.rel.localeCompare(b.rel, 'zh'));
+
+  // 可见性：上级都展开才显示（根目录永远展开）
+  const shown = new Set(['']);
+  const hasChild = new Set();
+  dirs.forEach((d) => { const p = parentOf(d.rel); if (p) hasChild.add(p); });
   dirs.forEach((d) => {
-    html += row(d.rel, '📁 ' + esc(d.name), (d.depth || 1) - 1, dirCards(d.rel));
+    const p = parentOf(d.rel);
+    if (shown.has(p) && (p === '' || treeExpanded.has(p))) shown.add(d.rel);
+  });
+
+  dirs.forEach((d) => {
+    if (!shown.has(d.rel)) return;
+    const kids = hasChild.has(d.rel);
+    const open = treeExpanded.has(d.rel);
+    const tw = kids
+      ? `<span class="tw ${open ? 'open' : ''}" data-tw="${esc(d.rel)}">${open ? '▾' : '▸'}</span>`
+      : '<span class="tw"></span>';
+    html += row(d.rel, '📁 ' + esc(d.name), (d.depth || 1) - 1, treeCardCount(d.rel), tw);
   });
   const hid = lib.hidden.length;
   html += '<div class="cat-title">' + t('其它') + '</div>';
@@ -717,6 +777,7 @@ function dirOfCard(c) {
    直接借浏览器的历史记录：goDir 里 pushState，popstate 里回放。
    这样无论侧键是被宿主窗口转发过来，还是 Chromium 自己处理，走的都是同一条路。 */
 function navApply(dir) {
+  expandPath(dir);
   curDir = dir;
   sel = [];
   $('#search').value = '';
@@ -776,7 +837,7 @@ function renderMain() {
   $('#folders').innerHTML = subs
     .map((d) => `<div class="tile" data-dir="${esc(d.rel)}">
         <div class="tname">📁 ${esc(d.name)}</div>
-        <div class="tmeta">${filesIn(d.rel).length}${t('个 LoRA · ')}${dirCards(d.rel)}${t(' 张卡')}</div>
+        <div class="tmeta">${countsText(d.rel)}</div>
       </div>`)
     .join('');
 
@@ -787,7 +848,7 @@ function renderMain() {
   }
   $('#crumb').innerHTML =
     crumbs.map((p) => `<a href="#" data-dir="${esc(p)}">${esc(p ? dirLabel(p) : t('🗂 根目录'))}</a>`).join(' <span class="sep">/</span> ') +
-    ` <span class="sep">·</span> ${filesIn(curDir).length}${t('个 LoRA · ')}${cardsIn(curDir).length}${t(' 张卡')}`;
+    ` <span class="sep">·</span> ${countsText(curDir)}`;
 
   const items = orderedCards(curDir).map(cardHTML);
   const ghostFiles = filesIn(curDir)
@@ -1374,6 +1435,7 @@ function bind() {
 
   const goDir = (dir) => {
     if (dir !== curDir) history.pushState({ dir }, '', '?dir=' + encodeURIComponent(dir));
+    expandPath(dir);
     curDir = dir;
     sel = [];
     $('#search').value = '';        // 点分类/文件夹/面包屑 = 退出搜索
@@ -1539,6 +1601,13 @@ function bind() {
       const { kind, val } = keyOf(refEl);
       rematchOne(kind === 'c' ? lib.cards.find((x) => x.id === val) : null,
                  kind === 'f' ? val : null);
+      return;
+    }
+
+    const tw = t.closest('[data-tw]');
+    if (tw) {
+      e.stopPropagation();
+      toggleExpand(tw.dataset.tw);
       return;
     }
 
@@ -1851,6 +1920,7 @@ function bind() {
   bind();
   migrate();
   normalize();
+  expandPath(curDir);
   render();
   history.replaceState({ dir: curDir }, '', '?dir=' + encodeURIComponent(curDir));
   scrollTop();

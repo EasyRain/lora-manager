@@ -362,3 +362,12 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .civ.todo{color:var(--dim2)}
 .civ.todo:hover{color:var(--accent)}
 .civ[data-civ-open]{color:var(--link)}
+
+/* 左栏目录树的折叠三角 */
+.cat .tw{
+  display:inline-block; width:14px; flex:0 0 14px; margin-right:2px;
+  font-size:10px; line-height:1; color:var(--dim2); text-align:center;
+  cursor:pointer; user-select:none; transition:color .12s;
+}
+.cat .tw:hover{color:var(--accent)}
+.cat .tw.open{color:var(--dim)}
