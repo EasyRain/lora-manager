@@ -390,3 +390,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 /* 左栏「上层」提示行 */
 .cat.dim{color:var(--dim3); font-size:12px}
+
+/* 拖卡片到文件夹上时的提示 */
+.tile.drop-target{outline:2px dashed var(--accent); outline-offset:3px}
+.cat.drop-target{background:var(--hover3); box-shadow:inset 0 0 0 1px var(--accent)}
+.crumb [data-dir].drop-target{outline:2px dashed var(--accent); outline-offset:2px; border-radius:4px}

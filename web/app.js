@@ -954,6 +954,79 @@ function render() {
 /* ---------------- 拖动排序 ---------------- */
 let dragKey = null;
 
+async function undoMove() {
+  if (!lastMove) return;
+  try {
+    await moveFile(lastMove.to, parentOf(lastMove.from));
+    const c = cardByPath(lastMove.to);
+    if (c) c.path = lastMove.from;
+    toast(t('已撤销'));
+    lastMove = null;                 // 撤完就没有可撤销的了
+    touch();
+    try { await loadTree(); } catch { }
+    render();
+  } catch (e) { toast(t('撤销失败：') + e.message, true); }
+}
+
+/* 把一张卡片（连同它的 LoRA 文件）移动到某个目录 */
+async function moveCardTo(cardId, dir) {
+  const c = lib.cards.find((x) => x.id === cardId);
+  if (!c) return;
+  const from = c.path ? parentOf(c.path) : (c.dir || '');
+  if (from === dir) return;
+  if (c.path) {
+    try {
+      const d = await moveFile(c.path, dir);
+      lastMove = { from: d.from, to: d.to };
+      c.path = d.to;
+    } catch (e) { return toast(e.message, true); }
+  } else {
+    c.dir = dir;
+  }
+  touch();
+  try { await loadTree(); } catch { }
+  render();
+  toast(t('已移动到 ') + dirLabel(dir));
+}
+
+
+/* ---------------- 把卡片拖到文件夹上 = 移动 ---------------- */
+function bindMoveDrop() {
+  const mark = (el) => {
+    document.querySelectorAll('.drop-target').forEach((x) => x.classList.remove('drop-target'));
+    if (el) el.classList.add('drop-target');
+  };
+  const wire = (box, pick) => {
+    if (!box) return;
+    box.addEventListener('dragover', (e) => {
+      if (!dragKey || dragKey.type !== 'card') return;
+      const el = pick(e.target);
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      mark(el);
+    });
+    box.addEventListener('dragleave', (e) => {
+      if (!box.contains(e.relatedTarget)) mark(null);
+    });
+    box.addEventListener('drop', (e) => {
+      if (!dragKey || dragKey.type !== 'card') return;
+      const el = pick(e.target);
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      mark(null);
+      const id = dragKey.id;
+      dragKey = null;
+      moveCardTo(id, el.dataset.dir ?? '');
+    });
+  };
+  wire($('#folders'), (t) => t.closest('.tile[data-dir]'));
+  wire($('#cats-list'), (t) => t.closest('.cat[data-dir]'));
+  wire($('#crumb'), (t) => t.closest('[data-dir]'));
+}
+
 function clearDropMarks() {
   document.querySelectorAll('.dragging').forEach((x) => x.classList.remove('dragging'));
   document.querySelectorAll('.drop-before,.drop-after').forEach((x) => {
@@ -1574,12 +1647,15 @@ function bind() {
       { sep: true },
       { label: t('按规则排序（有提示词的在前）'), run: () => autoSort() },
       { sep: true },
+      { label: t('撤销移动'), show: !!lastMove, run: () => undoMove() },
+      { sep: true, show: !!lastMove },
       { label: t('刷新这个目录'), run: async () => { await loadTree(); render(); toast(t('已刷新')); } },
       { label: t('在资源管理器中打开'), run: () => revealPath(curDir) },
     ]);
   });
 
   bindDrag();
+  bindMoveDrop();
 
   $('#pv-close').addEventListener('click', closePreview);
   $('#pv-copy').addEventListener('click', () => {
@@ -1680,19 +1756,7 @@ function bind() {
   }
 
 
-  $('#btn-undo').addEventListener('click', async () => {
-    if (!lastMove) return;
-    try {
-      await moveFile(lastMove.to, parentOf(lastMove.from));
-      const c = cardByPath(lastMove.to);
-      if (c) c.path = lastMove.from;
-      toast(t('已撤销'));
-      lastMove = null;
-      touch();
-      try { await loadTree(); } catch { }
-      render();
-    } catch (e) { toast(t('撤销失败：') + e.message, true); }
-  });
+  $('#btn-undo').addEventListener('click', () => undoMove());
 
   /* 侧栏宽度拖动 */
   const SIDE_KEY = 'lora.sideW';
