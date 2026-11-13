@@ -108,6 +108,7 @@ public class MainForm : Form
 
             // WParam 高 16 位 = 哪个侧键（1 = 后退，2 = 前进）
             var which = (long)m.WParam >> 16 & 0xFFFF;
+            Log.Write("xbutton " + which);
             core.ExecuteScriptAsync(which == 1
                 ? "window.__navBack && window.__navBack()"
                 : "window.__navForward && window.__navForward()");
