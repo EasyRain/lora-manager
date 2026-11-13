@@ -667,7 +667,8 @@ function renderTree() {
   dirs.forEach((d) => {
     if (!shown.has(d.rel)) return;
     const depth = depthOf(d.rel);
-    if (hidden > 0 && depth >= collapseFrom && depth <= collapseTo) return;   // 被收起
+    // 只收起「通往当前目录的那一条链」，同级的其它文件夹照常显示
+    if (hidden > 0 && depth >= collapseFrom && depth <= collapseTo && curDir.startsWith(d.rel + '/')) return;
     const pad = depth >= tailStart ? indentTail(depth) : indentTop(depth);
     rows.push({ depth, html: row(d.rel, iconHTML(d.rel, hasChild.has(d.rel), treeExpanded.has(d.rel)),
                                  d.name, pad, treeCardCount(d.rel)) });
