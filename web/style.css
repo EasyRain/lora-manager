@@ -95,7 +95,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ---------- 布局 ---------- */
 .layout{flex:1 1 auto; display:flex; min-height:0}
 .sidebar{
-  width:196px; flex:0 0 auto; padding:10px 8px; overflow-y:auto;
+  width:172px; flex:0 0 auto; padding:10px 6px; overflow-y:auto;
   background:var(--panel); border-right:1px solid var(--line);
 }
 .cat{
@@ -371,3 +371,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 }
 .cat .tw:hover{color:var(--accent)}
 .cat .tw.open{color:var(--dim)}
+
+/* 侧栏右边缘：拖动改宽度 */
+.sidegrip{width:6px; flex:0 0 6px; margin-left:-6px; cursor:col-resize; z-index:6; position:relative}
+.sidegrip:hover{background:var(--accent); opacity:.35}

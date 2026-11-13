@@ -1443,7 +1443,12 @@ function bind() {
     scrollTop();
   };
 
-  $('#cats').addEventListener('click', (e) => { const r = e.target.closest('[data-dir]'); if (r) goDir(r.dataset.dir); });
+  $('#cats').addEventListener('click', (e) => {
+    const tw = e.target.closest('[data-tw]');
+    if (tw) { e.stopPropagation(); toggleExpand(tw.dataset.tw); return; }   // 三角只折叠，不导航
+    const r = e.target.closest('[data-dir]');
+    if (r) goDir(r.dataset.dir);
+  });
   $('#folders').addEventListener('click', (e) => { const t = e.target.closest('.tile'); if (t) goDir(t.dataset.dir); });
   $('#crumb').addEventListener('click', (e) => { const a = e.target.closest('[data-dir]'); if (a) { e.preventDefault(); goDir(a.dataset.dir); } });
 
@@ -1604,13 +1609,6 @@ function bind() {
       return;
     }
 
-    const tw = t.closest('[data-tw]');
-    if (tw) {
-      e.stopPropagation();
-      toggleExpand(tw.dataset.tw);
-      return;
-    }
-
     const addChild = t.closest('[data-add-child]');
     if (addChild) { e.stopPropagation(); return openChild(addChild.dataset.addChild, null); }
 
@@ -1666,6 +1664,33 @@ function bind() {
       render();
     } catch (e) { toast(t('撤销失败：') + e.message, true); }
   });
+
+  /* 侧栏宽度拖动 */
+  const SIDE_KEY = 'lora.sideW';
+  let sideW = parseInt(localStorage.getItem(SIDE_KEY) || '172', 10);
+  if (!(sideW >= 140 && sideW <= 460)) sideW = 172;
+  $('#cats').style.width = sideW + 'px';
+  const grip = $('#sidegrip');
+  if (grip) {
+    grip.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = $('#cats').getBoundingClientRect().width;
+      const move = (ev) => {
+        const w = Math.max(140, Math.min(460, startW + ev.clientX - startX));
+        sideW = Math.round(w);
+        $('#cats').style.width = sideW + 'px';
+      };
+      const up = () => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', up);
+        localStorage.setItem(SIDE_KEY, String(sideW));
+        renderMain();
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', up);
+    });
+  }
 
   $('#btn-match').addEventListener('click', matchAll);
 
