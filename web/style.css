@@ -484,7 +484,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .ed-imgs .imgcell.drag-src{opacity:.3}
 /* 预插入位置：一个虚线空位，最直观 */
 .ed-imgs .drop-slot{
-  flex:0 0 auto; width:100px; height:150px; box-sizing:border-box;
+  flex:0 0 auto; width:100px; height:150px; box-sizing:border-box; pointer-events:none;
   border:2px dashed var(--accent); border-radius:8px;
   background:rgba(76,154,255,.10);
 }
@@ -502,7 +502,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 /* 卡片区拖动的竖版占位槽（和编辑弹窗里的虚线框同一套观感） */
 .drop-slot-v{
-  flex:0 0 auto; box-sizing:border-box; width:100%;
+  flex:0 0 auto; box-sizing:border-box; width:100%; pointer-events:none;
   border:2px dashed var(--accent); border-radius:10px;
   background:rgba(76,154,255,.10);
 }

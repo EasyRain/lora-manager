@@ -1232,7 +1232,7 @@ function bindDrag() {
   box.addEventListener('drop', (e) => {
     if (!dragKey) return;
     const target = e.target.closest(dragKey.type === 'card' ? '[data-card]' : '[data-child]');
-    if (!target) return;
+    if (!target) { clearDropMarks(); dragKey = null; return; }
     e.preventDefault();
     const r = target.getBoundingClientRect();
     const before = e.clientY < r.top + r.height / 2;
@@ -1646,7 +1646,7 @@ function hideDropSlot() {
   withFlip(box, () => box.removeChild(dropSlot));
 }
 
-function clearDropMarks() {
+function clearImgDropMarks() {
   document.querySelectorAll('#ed-imgs .imgcell').forEach((c) => {
     c.classList.remove('drag-src');
   });
@@ -1704,7 +1704,7 @@ function bindImgDrag() {
   box.addEventListener('dragleave', (e) => {
     if (!internalImgDrag) return;
     e.stopPropagation();
-    if (!box.contains(e.relatedTarget)) { stopAutoScroll(); clearDropMarks(); }
+    if (!box.contains(e.relatedTarget)) { stopAutoScroll(); clearImgDropMarks(); }
   });
 
   box.addEventListener('drop', (e) => {
@@ -1712,7 +1712,7 @@ function bindImgDrag() {
     e.preventDefault();
     e.stopPropagation();                          // 别让全局 drop 当成图片导入
     stopAutoScroll();
-    clearDropMarks();
+    clearImgDropMarks();
 
     const from = imgDragFrom;
     let at = imgDropAt;
@@ -1741,7 +1741,7 @@ function bindImgDrag() {
 
   box.addEventListener('dragend', () => {
     stopAutoScroll();
-    clearDropMarks();
+    clearImgDropMarks();
     imgDragFrom = -1; imgDropAt = -1;
     setTimeout(() => { internalImgDrag = false; }, 0);
   });
