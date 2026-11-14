@@ -149,6 +149,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 /* ---------- 大卡片 ---------- */
 .card{
+  position:relative;
   background:var(--panel); border:1px solid var(--line); border-radius:10px;
   overflow:hidden; transition:.12s;
 }
@@ -524,8 +525,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 }
 
 /* 小卡片拖动落点：虚线占位（和大卡片区的渐变提示并存） */
+/* 绝对定位：不参与布局，跟手且不抖 */
 .drop-slot-child{
-  box-sizing:border-box; width:100%; pointer-events:none;
+  position:absolute; left:0; right:0; z-index:6;
+  box-sizing:border-box; pointer-events:none;
   border:2px dashed var(--accent); border-radius:8px;
-  background:rgba(76,154,255,.10);
+  background:rgba(76,154,255,.12);
 }

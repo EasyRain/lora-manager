@@ -1120,26 +1120,25 @@ function renderWithFlip() {
   playFlip(snap);
 }
 
-/* 小卡片：虚线占位 + 跨卡片落点解析 */
+/* 小卡片：绝对定位的虚线浮层（不参与布局，所以既不抖也不卡） */
 let childSlot = null;
 
-function showChildSlot(cardEl, refEl, height) {
+function showChildSlot(cardEl, top, height) {
   if (!childSlot) {
     childSlot = document.createElement('div');
     childSlot.className = 'drop-slot-child';
   }
+  if (childSlot.parentNode !== cardEl) cardEl.appendChild(childSlot);
+  childSlot.style.top = Math.max(0, Math.round(top)) + 'px';
   childSlot.style.height = Math.max(24, Math.round(height)) + 'px';
-  if (childSlot.parentNode !== cardEl || childSlot.nextSibling !== refEl) {
-    cardEl.insertBefore(childSlot, refEl || null);
-  }
+  childSlot.hidden = false;
 }
 
 function hideChildSlot() {
-  if (childSlot && childSlot.parentNode) childSlot.parentNode.removeChild(childSlot);
+  if (childSlot && !childSlot.hidden) childSlot.hidden = true;
 }
 
-/* 返回 { cardEl, card, at, refEl, noop }
-   用几何位置判定：占位框会把元素顶开，靠 e.target 判断会来回跳 */
+/* 返回 { cardEl, card, at, top, noop } */
 function resolveChildDrop(e, srcKey) {
   const cardEl = e.target.closest('[data-card]');
   if (!cardEl) return null;
@@ -1151,9 +1150,14 @@ function resolveChildDrop(e, srcKey) {
 
   const els = [...cardEl.querySelectorAll(':scope > [data-child]')];
   let domPos = els.length;
+  let top = cardEl.clientHeight - 4;
   for (let i = 0; i < els.length; i++) {
     const r = els[i].getBoundingClientRect();
-    if (e.clientY < r.top + r.height / 2) { domPos = i; break; }
+    if (e.clientY < r.top + r.height / 2) {
+      domPos = i;
+      top = els[i].offsetTop - 2;
+      break;
+    }
   }
 
   const draggedEl = els.find((el) => (el.dataset.child || '').split('|')[1] === srcKid);
@@ -1165,10 +1169,7 @@ function resolveChildDrop(e, srcKey) {
   const origAt = kids.findIndex((k) => k.id === srcKid);
   const noop = srcCardId === cardEl.dataset.card && origAt >= 0 && at === origAt;
 
-  let refEl = els[domPos] || null;
-  if (refEl && draggedEl && refEl === draggedEl) refEl = draggedEl.nextSibling;
-
-  return { cardEl, card, at, refEl, noop };
+  return { cardEl, card, at, top, noop };
 }
 
 function clearDropMarks() {
@@ -1227,13 +1228,12 @@ function bindDrag() {
     if (dragKey.type === 'child') {
       // 小卡片：可以拖到任意大卡片里，用虚线占位表示落点
       // 先摘掉占位再测量：否则占位把自己撑开，位置每次都在变 → 抖动
-      hideChildSlot();
       const info = resolveChildDrop(e, dragKey.key);
       if (!info) { hideChildSlot(); return; }
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       if (info.noop) hideChildSlot();
-      else showChildSlot(info.cardEl, info.refEl, dragH);
+      else showChildSlot(info.cardEl, info.top, dragH);
       return;
     }
 
