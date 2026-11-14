@@ -505,6 +505,20 @@ public static class Api
             }
         });
 
+        // 现存的图片文件名（前端用来找出失效引用）
+        app.MapGet("/api/images/list", () =>
+        {
+            try
+            {
+                var names = Directory.EnumerateFiles(ImgDir)
+                    .Select(Path.GetFileName)
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .ToList();
+                return Results.Json(new { ok = true, names });
+            }
+            catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
+        });
+
         // 把图片移到应用内回收站（data/images/_trash），比系统回收站可靠
         app.MapPost("/api/image/trash", async (HttpContext ctx) =>
         {
@@ -527,12 +541,12 @@ public static class Api
                         if (!File.Exists(src)) continue;
                         if (RefCount(fn) > 1) continue;      // 还有别的条目在用，不能动
                         var dst = Path.Combine(trash, fn);
-                        var i = 2;
                         while (File.Exists(dst))
                         {
-                            var stem = Path.GetFileNameWithoutExtension(fn);
-                            var ext = Path.GetExtension(fn);
-                            dst = Path.Combine(trash, $"{stem} ({i++}){ext}");
+                            // 同名极少见（时间戳撞车或人为改名）→ 按同一规则重新给个名字
+                            var stamp2 = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                            var rnd2 = Random.Shared.Next(0x1000, 0x10000).ToString("x4");
+                            dst = Path.Combine(trash, $"{stamp2}-{rnd2}{Path.GetExtension(fn)}");
                         }
                         File.Move(src, dst);
                         foreach (var k in _imgHash.Where(kv => kv.Value == fn).Select(kv => kv.Key).ToList())

@@ -972,6 +972,7 @@ function renderSel() {
 }
 
 function render() {
+  queueMicrotask(() => markMissingImages(document));
   updateMatchButton();
   renderTree();
   renderMain();
@@ -1383,6 +1384,72 @@ async function removeImageFiles(urls, recycle) {
   } catch { return 0; }
 }
 
+function markMissingImages(root) {
+  (root || document).querySelectorAll('img:not([data-missing])').forEach((img) => {
+    const replace = () => {
+      if (img.dataset.missing) return;
+      img.dataset.missing = '1';
+      const box = document.createElement('div');
+      const cls = img.className || '';
+      box.className = 'img-broken ' + cls;
+      box.textContent = t('图片已丢失');
+      box.title = img.getAttribute('src') || '';
+      img.replaceWith(box);
+    };
+    img.addEventListener('error', replace, { once: true });
+    if (img.complete && img.naturalWidth === 0 && img.src) replace();
+  });
+}
+
+/* ---------------- 失效图片引用 ---------------- */
+let missingImgs = new Set();
+
+function imgNameOf(u) {
+  try { return decodeURIComponent(String(u).split('/').pop() || ''); }
+  catch { return String(u).split('/').pop() || ''; }
+}
+
+async function refreshMissing() {
+  try {
+    const r = await fetch('/api/images/list');
+    if (!r.ok) throw new Error('list failed');
+    const d = await r.json();
+    const have = new Set(d.names || []);
+    const miss = new Set();
+    lib.cards.forEach((c) => (c.children || []).forEach((k) => {
+      imgsOf(k).forEach((u) => { const n = imgNameOf(u); if (n && !have.has(n)) miss.add(u); });
+    }));
+    missingImgs = miss;
+  } catch {
+    missingImgs = new Set();
+  }
+  renderMissingBar();
+}
+
+function renderMissingBar() {
+  const bar = document.querySelector('#missing-bar');
+  if (!bar) return;
+  const n = missingImgs.size;
+  bar.hidden = n === 0;
+  bar.innerHTML = n
+    ? `<span class="mb-text">${t('有 ')}${n}${t(' 张图片已丢失')}</span>` +
+      `<button class="btn ghost mb-btn" id="btn-clean-missing">${t('清理引用')}</button>`
+    : '';
+}
+
+function cleanMissingRefs() {
+  const n = missingImgs.size;
+  if (!n) return;
+  lib.cards.forEach((c) => (c.children || []).forEach((k) => {
+    if (Array.isArray(k.imgs)) k.imgs = k.imgs.filter((u) => !missingImgs.has(u));
+  }));
+  missingImgs = new Set();
+  touch();
+  render();
+  renderMissingBar();
+  toast(t('已清理 ') + n + t(' 条失效图片引用'));
+}
+
 /* ---------------- 多图 ---------------- */
 let edImgs = [];
 let edOriginals = [];              // 打开时卡片上的图
@@ -1472,6 +1539,7 @@ function saveChild() {
   touch();
   closeChild(true);
   render();
+  refreshMissing();
 }
 
 async function uploadImages(files) {
@@ -2103,6 +2171,10 @@ function bind() {
     e.target.value = '';
     if (files.length) await uploadFiles(files, importDir);
   });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#btn-clean-missing')) cleanMissingRefs();
+  });
+
   $('#ed-title').addEventListener('input', updateSaveState);
   $('#ed-body').addEventListener('input', updateSaveState);
 
@@ -2212,4 +2284,5 @@ function bind() {
   history.replaceState({ dir: curDir }, '', '?dir=' + encodeURIComponent(curDir));
   scrollTop();
   if (lib.savedAt) $('#saved').textContent = t('已保存 ') + lib.savedAt.slice(11, 19);
+  refreshMissing();
 })();

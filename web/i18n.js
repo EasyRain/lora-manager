@@ -243,6 +243,12 @@ const I18N = {
     '复用 ': 'reused ',
     '已存在 ': 'already present ',
     ' 张（保存后生效）': ' image(s) (applies after save)',
+    '有 ': 'Missing ',
+    ' 张图片已丢失': ' image(s)',
+    '清理引用': 'Clean refs',
+    '已清理 ': 'Removed ',
+    ' 条失效图片引用': ' broken image reference(s)',
+    '图片已丢失': 'Image missing',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

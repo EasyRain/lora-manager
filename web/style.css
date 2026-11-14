@@ -446,3 +446,22 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 }
 .sbtn:hover{color:var(--accent); border-color:var(--accent)}
 .sbtn:active{transform:scale(.94)}
+
+/* 失效图片提示条（侧栏底部） */
+.missing-bar{display:flex; align-items:center; gap:8px; padding:8px 12px;
+  font-size:12px; color:#b45; background:#b4500012; border-top:1px solid var(--line)}
+.missing-bar[hidden]{display:none}
+.missing-bar .mb-text{flex:1 1 auto; min-width:0}
+.missing-bar .mb-btn{padding:3px 8px; font-size:12px}
+
+/* 丢失图片的占位块（替换掉 img，避免碎图标和比例问题） */
+.img-broken{
+  display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  border:1px dashed var(--line); border-radius:6px; color:var(--muted, #888);
+  font-size:12px; background:repeating-linear-gradient(45deg, #00000006 0 6px, transparent 6px 12px);
+  box-sizing:border-box; text-align:center; padding:6px 0; overflow:hidden;
+  writing-mode:vertical-rl; letter-spacing:2px; line-height:1;
+}
+/* 占位按 2:3 竖版，跟着普通图片一起排、一起横滚 */
+.img-broken.cimg, .img-broken.imgcell{ height:150px; width:auto; aspect-ratio:2 / 3 }
+.img-broken.pv-img{ height:min(60vh, 420px); width:auto; aspect-ratio:2 / 3; margin:8px 0 }
