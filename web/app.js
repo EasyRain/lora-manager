@@ -1138,7 +1138,8 @@ function hideChildSlot() {
   if (childSlot && childSlot.parentNode) childSlot.parentNode.removeChild(childSlot);
 }
 
-/* 返回 { cardEl, card, at, refEl, noop } */
+/* 返回 { cardEl, card, at, refEl, noop }
+   用几何位置判定：占位框会把元素顶开，靠 e.target 判断会来回跳 */
 function resolveChildDrop(e, srcKey) {
   const cardEl = e.target.closest('[data-card]');
   if (!cardEl) return null;
@@ -1147,24 +1148,26 @@ function resolveChildDrop(e, srcKey) {
 
   const [srcCardId, srcKid] = srcKey.split('|');
   const kids = card.children || [];
-  const restIds = kids.filter((k) => k.id !== srcKid).map((k) => k.id);
 
-  const childEl = e.target.closest('[data-child]');
-  let at, refEl;
-  if (childEl && childEl.dataset.child) {
-    const tid = childEl.dataset.child.split('|')[1];
-    const r = childEl.getBoundingClientRect();
-    const before = e.clientY < r.top + r.height / 2;
-    const i = restIds.indexOf(tid);
-    at = (i < 0 ? restIds.length : i) + (before ? 0 : 1);
-    refEl = before ? childEl : childEl.nextSibling;
-  } else {
-    at = restIds.length;                       // 落在卡片空白处 → 放到末尾
-    refEl = null;
+  const els = [...cardEl.querySelectorAll(':scope > [data-child]')];
+  let domPos = els.length;
+  for (let i = 0; i < els.length; i++) {
+    const r = els[i].getBoundingClientRect();
+    if (e.clientY < r.top + r.height / 2) { domPos = i; break; }
   }
+
+  const draggedEl = els.find((el) => (el.dataset.child || '').split('|')[1] === srcKid);
+  const draggedDom = draggedEl ? els.indexOf(draggedEl) : -1;
+
+  let at = domPos;
+  if (draggedDom >= 0 && domPos > draggedDom) at -= 1;
 
   const origAt = kids.findIndex((k) => k.id === srcKid);
   const noop = srcCardId === cardEl.dataset.card && origAt >= 0 && at === origAt;
+
+  let refEl = els[domPos] || null;
+  if (refEl && draggedEl && refEl === draggedEl) refEl = draggedEl.nextSibling;
+
   return { cardEl, card, at, refEl, noop };
 }
 
