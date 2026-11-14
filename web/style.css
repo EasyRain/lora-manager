@@ -252,9 +252,12 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 /* 编辑弹窗里的多图区：文字框下方，两列；没图时整块隐藏 */
 /* 单排横滚：图片保持 150px 高，多了就往右滚，不挤占按钮和文字区 */
+/* 和上方文字框同一套边框/圆角/外边距，左右对齐 */
 .ed-imgs{
-  display:flex; gap:8px; padding:0 12px 4px;
-  overflow-x:auto; overflow-y:hidden; align-items:flex-start;
+  display:flex; gap:8px; align-items:flex-start;
+  margin:0 12px 2px; padding:10px 10px 8px;
+  border:1px solid var(--line); border-radius:9px; background:var(--bg);
+  overflow-x:auto; overflow-y:hidden;
 }
 /* 自己的细滚动条：6px，只在图片这排出现 */
 .ed-imgs::-webkit-scrollbar{height:6px}
@@ -375,7 +378,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .child .ct:active{cursor:grabbing}
 
 /* 编辑弹窗里拖图片时的提示 */
-#modal.dropping .ed-imgs, #modal.dropping .ed-body{outline:2px dashed var(--accent); outline-offset:-6px; border-radius:10px}
+#modal.dropping .ed-imgs, #modal.dropping .ed-body{outline:2px dashed var(--accent); outline-offset:-3px; border-radius:10px}
 #modal.dropping .ed-body::after{
   content:'拖到这里'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   border:2px dashed var(--accent); border-radius:8px; color:var(--accent); font-size:12px; background:var(--bg);
