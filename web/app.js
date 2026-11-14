@@ -1120,8 +1120,10 @@ function renderWithFlip() {
   playFlip(snap);
 }
 
-/* 小卡片：绝对定位的虚线浮层（不参与布局，所以既不抖也不卡） */
+/* 小卡片：绝对定位的虚线浮层 + 用 transform 把后面的条目挤开
+   —— 既占住真实空间，又不触发布局重排，所以跟手且不抖 */
 let childSlot = null;
+let shiftedEls = [];
 
 function showChildSlot(cardEl, top, height) {
   if (!childSlot) {
@@ -1136,6 +1138,30 @@ function showChildSlot(cardEl, top, height) {
 
 function hideChildSlot() {
   if (childSlot && !childSlot.hidden) childSlot.hidden = true;
+  clearShifts();
+}
+
+function clearShifts() {
+  shiftedEls.forEach((el) => { el.style.transition = ''; el.style.transform = ''; });
+  shiftedEls = [];
+}
+
+/* 把落点之后的条目下移 height，腾出真实空隙 */
+function shiftAfter(cardEl, domPos, height, skipKey) {
+  const els = [...cardEl.querySelectorAll(':scope > [data-child]')];
+  const want = els.slice(domPos).filter((el) => el.dataset.child !== skipKey);
+  // 复用已有元素，避免每帧重设 transition
+  const same = want.length === shiftedEls.length && want.every((el, i) => el === shiftedEls[i]);
+  if (same) {
+    want.forEach((el) => { el.style.transform = 'translateY(' + height + 'px)'; });
+    return;
+  }
+  clearShifts();
+  want.forEach((el) => {
+    el.style.transition = 'transform .12s ease';
+    el.style.transform = 'translateY(' + height + 'px)';
+    shiftedEls.push(el);
+  });
 }
 
 /* 返回 { cardEl, card, at, top, noop } */
@@ -1148,12 +1174,15 @@ function resolveChildDrop(e, srcKey) {
   const [srcCardId, srcKid] = srcKey.split('|');
   const kids = card.children || [];
 
+  // 用 offsetTop 量（不受 transform 影响），所以判定结果稳定
+  const cardRect = cardEl.getBoundingClientRect();
+  const y = e.clientY - cardRect.top + cardEl.scrollTop;
+
   const els = [...cardEl.querySelectorAll(':scope > [data-child]')];
   let domPos = els.length;
-  let top = cardEl.clientHeight - 4;
+  let top = cardEl.scrollHeight - 4;
   for (let i = 0; i < els.length; i++) {
-    const r = els[i].getBoundingClientRect();
-    if (e.clientY < r.top + r.height / 2) {
+    if (y < els[i].offsetTop + els[i].offsetHeight / 2) {
       domPos = i;
       top = els[i].offsetTop - 2;
       break;
@@ -1169,7 +1198,7 @@ function resolveChildDrop(e, srcKey) {
   const origAt = kids.findIndex((k) => k.id === srcKid);
   const noop = srcCardId === cardEl.dataset.card && origAt >= 0 && at === origAt;
 
-  return { cardEl, card, at, top, noop };
+  return { cardEl, card, at, top, noop, domPos };
 }
 
 function clearDropMarks() {
@@ -1177,6 +1206,7 @@ function clearDropMarks() {
   document.querySelectorAll('.drop-above,.drop-below,.drop-before,.drop-after')
     .forEach((x) => x.classList.remove('drop-above', 'drop-below', 'drop-before', 'drop-after'));
   hideChildSlot();
+  clearShifts();
   stopEdgeScroll();
   dragH = 0;
 }
@@ -1233,7 +1263,10 @@ function bindDrag() {
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       if (info.noop) hideChildSlot();
-      else showChildSlot(info.cardEl, info.top, dragH);
+      else {
+        showChildSlot(info.cardEl, info.top, dragH);
+        shiftAfter(info.cardEl, info.domPos, dragH, dragKey.key);
+      }
       return;
     }
 
