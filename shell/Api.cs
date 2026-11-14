@@ -175,7 +175,7 @@ public static class Api
     static readonly Dictionary<string, string> _imgHash = new(StringComparer.OrdinalIgnoreCase);
     static bool _imgHashReady;
 
-    static string TrashDir => Path.Combine(ImgDir, "_trash");
+    static string UrlOf(string fileName) => "/images/" + Uri.EscapeDataString(fileName);
 
     /// <summary>首次使用时把 data/images 里已有图片的哈希建进内存表。</summary>
     static void EnsureImgHash()
@@ -194,42 +194,6 @@ public static class Api
         _imgHashReady = true;
     }
 
-    static string UrlOf(string fileName) => "/images/" + Uri.EscapeDataString(fileName);
-
-    /// <summary>在 _trash 里找同哈希的图；找到就搬回 images，返回文件名。</summary>
-    static string? TryRestoreFromTrash(string hash)
-    {
-        if (!Directory.Exists(TrashDir)) return null;
-        foreach (var f in Directory.EnumerateFiles(TrashDir))
-        {
-            string h;
-            try { h = Sha256File(f).GetAwaiter().GetResult(); } catch { continue; }
-            if (!string.Equals(h, hash, StringComparison.OrdinalIgnoreCase)) continue;
-
-            // 去掉 _trash 前缀的时间戳：20261114-232348-demo02.jpg → demo02.jpg
-            var baseName = Path.GetFileName(f);
-            var m = System.Text.RegularExpressions.Regex.Match(
-                baseName, @"^(?<stem>.*?)(?: \((?<n>\d+)\))?(?<ext>\.[^.]+)?$");
-            var target = m.Success
-                ? m.Groups["stem"].Value + m.Groups["ext"].Value
-                : baseName;
-
-            var dst = Path.Combine(ImgDir, target);
-            var k = 1;
-            while (File.Exists(dst))
-                dst = Path.Combine(ImgDir, Path.GetFileNameWithoutExtension(target) + "-" + k++ + Path.GetExtension(target));
-            try
-            {
-                File.Move(f, dst);
-                _imgHash[hash] = Path.GetFileName(dst);
-                Log.Write("image restored from _trash: " + baseName + " -> " + Path.GetFileName(dst));
-                return Path.GetFileName(dst);
-            }
-            catch { return null; }
-        }
-        return null;
-    }
-
     /// <summary>library.json 里引用了这张图的条目数（用于判断能不能移走）。</summary>
     static int RefCount(string fileName)
     {
@@ -238,12 +202,20 @@ public static class Api
             var txt = File.Exists(LibPath) ? File.ReadAllText(LibPath) : "";
             if (txt.Length == 0) return 0;
             var needle = "/images/" + fileName;
-            var escaped = "/images/" + Uri.EscapeDataString(fileName);
+            // 文件名可能是 ASCII（两种写法相同）或含中文（库里存的是转义形式），
+            // 所以两种写法去重后再各数一次，别把同一个引用数两遍。
+            var forms = new[] { needle, "/images/" + Uri.EscapeDataString(fileName) }
+                        .Distinct(StringComparer.Ordinal);
             var n = 0;
-            var idx = 0;
-            while ((idx = txt.IndexOf(needle, idx, StringComparison.Ordinal)) >= 0) { n++; idx += needle.Length; }
-            idx = 0;
-            while ((idx = txt.IndexOf(escaped, idx, StringComparison.Ordinal)) >= 0) { n++; idx += escaped.Length; }
+            foreach (var form in forms)
+            {
+                var idx = 0;
+                while ((idx = txt.IndexOf(form, idx, StringComparison.Ordinal)) >= 0)
+                {
+                    n++;
+                    idx += form.Length;
+                }
+            }
             return n;
         }
         catch { return 0; }
@@ -451,12 +423,7 @@ public static class Api
                 if (_imgHash.TryGetValue(hash, out var exist) && File.Exists(Path.Combine(ImgDir, exist)))
                     return Results.Json(new { name = exist, url = UrlOf(exist), dedup = true });
 
-                // ② 回收站里有同一张 → 捞回来复用
-                var restored = TryRestoreFromTrash(hash);
-                if (restored is not null)
-                    return Results.Json(new { name = restored, url = UrlOf(restored), dedup = true, restored = true });
-
-                // ③ 都没有才落盘
+                // ② 都没有才落盘（删除走系统回收站，不再去翻回收站文件夹）
                 var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
                 var rnd = Random.Shared.Next(0x1000, 0x10000).ToString("x4");
                 var final = $"{stamp}-{rnd}{ext}";
@@ -551,16 +518,14 @@ public static class Api
         });
 
         // 把图片移到应用内回收站（data/images/_trash），比系统回收站可靠
-        app.MapPost("/api/image/trash", async (HttpContext ctx) =>
+        // 删除图片 → 系统回收站（仍保留“别处还在引用就不动”的保护）
+        app.MapPost("/api/image/recycle", async (HttpContext ctx) =>
         {
             try
             {
                 var body = await JsonNode.ParseAsync(ctx.Request.Body);
                 var arr = body?["names"]?.AsArray();
-                var trash = Path.Combine(ImgDir, "_trash");
-                Directory.CreateDirectory(trash);
-                var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-                var moved = 0;
+                var targets = new List<string>();
                 if (arr is not null)
                 {
                     foreach (var it in arr)
@@ -568,24 +533,20 @@ public static class Api
                         var raw = it?.GetValue<string>() ?? "";
                         var fn = Path.GetFileName(raw.Trim());
                         if (string.IsNullOrWhiteSpace(fn)) continue;
-                        var src = Path.Combine(ImgDir, fn);
-                        if (!File.Exists(src)) continue;
+                        var full = Path.Combine(ImgDir, fn);
+                        if (!File.Exists(full)) continue;
                         if (RefCount(fn) > 1) continue;      // 还有别的条目在用，不能动
-                        var dst = Path.Combine(trash, fn);
-                        while (File.Exists(dst))
-                        {
-                            // 同名极少见（时间戳撞车或人为改名）→ 按同一规则重新给个名字
-                            var stamp2 = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-                            var rnd2 = Random.Shared.Next(0x1000, 0x10000).ToString("x4");
-                            dst = Path.Combine(trash, $"{stamp2}-{rnd2}{Path.GetExtension(fn)}");
-                        }
-                        File.Move(src, dst);
-                        foreach (var k in _imgHash.Where(kv => kv.Value == fn).Select(kv => kv.Key).ToList())
-                            _imgHash.Remove(k);
-                        moved++;
+                        targets.Add(full);
                     }
                 }
-                return Results.Json(new { ok = true, moved, dir = trash });
+                var removed = RecycleFiles(targets);
+                foreach (var f in targets)
+                {
+                    var fn = Path.GetFileName(f);
+                    foreach (var k in _imgHash.Where(kv => kv.Value == fn).Select(kv => kv.Key).ToList())
+                        _imgHash.Remove(k);
+                }
+                return Results.Json(new { ok = true, removed });
             }
             catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
         });

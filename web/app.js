@@ -1353,7 +1353,6 @@ function openChild(cardId, childId) {
   $('#ed-body').value = k ? k.body || '' : '';
   edOriginals = imgsOf(k).slice();
   edPending.clear();
-  edRestored.clear();
   setThumbs(edOriginals);
   $('#ed-del').style.display = childId ? '' : 'none';
   const fbtn = $('#ed-format');
@@ -1364,11 +1363,11 @@ function openChild(cardId, childId) {
   setTimeout(() => (k ? $('#ed-body') : $('#ed-title')).focus(), 30);
 }
 
-async function moveImagesToTrash(urls) {
+async function recycleImages(urls) {
   const names = (urls || []).map((u) => String(u).split('/').pop()).filter(Boolean);
   if (!names.length) return 0;
   try {
-    const d = await postJson('/api/image/trash', { names });
+    const d = await postJson('/api/image/recycle', { names });
     return d.moved || 0;
   } catch { return 0; }
 }
@@ -1456,7 +1455,6 @@ function cleanMissingRefs() {
 let edImgs = [];
 let edOriginals = [];              // 打开时卡片上的图
 let edPending = new Set();         // 本次编辑中新复制进来的图（未保存前去删要清掉）
-let edRestored = new Set();        // 本次从回收站捞回来的图（取消时要放回去）
 
 function imgsOf(k) {
   if (!k) return [];
@@ -1491,10 +1489,9 @@ function closeChild(saved) {
   if (!saved) {
     // 没保存就关窗：把本次新复制进来的图删掉，原图不动
     if (edPending.size) removeImageFiles([...edPending], false);   // 未保存的新图：直接删
-    if (edRestored.size) moveImagesToTrash([...edRestored]);        // 从回收站捞回来的：放回去
+
   }
   edPending.clear();
-  edRestored.clear();
   edOriginals = [];
   $('#modal').hidden = true;
   editingChild = null;
@@ -1537,7 +1534,7 @@ function saveChild() {
   const keep = new Set(imgs);
   const removedSaved = edOriginals.filter((u) => !keep.has(u));        // 已保存过的 → 回收站
   const removedFresh = [...edPending].filter((u) => !keep.has(u));     // 本次新传又删掉的 → 直接删
-  if (removedSaved.length) moveImagesToTrash(removedSaved);
+  if (removedSaved.length) recycleImages(removedSaved);
   if (removedFresh.length) removeImageFiles(removedFresh, false);
   touch();
   closeChild(true);
@@ -1562,7 +1559,6 @@ async function uploadImages(files) {
     edImgs.push(d.url);
     if (d.dedup) {
       reused++;
-      if (d.restored) edRestored.add(d.url);           // 从回收站捞回来的，取消时要放回
     } else {
       added++;
       edPending.add(d.url);                            // 真正新落盘的，取消时要删掉
@@ -1679,7 +1675,6 @@ function claimFile(rel) {
   $('#ed-body').value = '';
   edOriginals = [];
   edPending.clear();
-  edRestored.clear();
   setThumbs([]);
   $('#ed-del').style.display = 'none';
   $('#modal').hidden = false;
