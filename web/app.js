@@ -1452,6 +1452,14 @@ function cleanMissingRefs() {
   toast(t('已清理 ') + n + t(' 条失效图片引用'));
 }
 
+function openImageByUrl(url) {
+  const name = String(url || '').split('/').pop();
+  if (!name) return;
+  postJson('/api/open', { name })
+    .then((d) => { if (d && d.error) toast(d.error, true); })
+    .catch(() => toast('打开失败', true));
+}
+
 /* ---------------- 编辑弹窗：拖动排序 ---------------- */
 let imgDragFrom = -1;          // 正在拖第几张
 let imgDropAt = -1;            // 打算插到哪个位置
@@ -1616,12 +1624,7 @@ function bindImgDrag() {
       return;
     }
     const img = e.target.closest('img');
-    if (!img) return;
-    const name = String(img.getAttribute('src') || '').split('/').pop();
-    if (!name) return;
-    postJson('/api/open', { name })
-      .then((d) => { if (d && d.error) toast(d.error, true); })
-      .catch(() => toast('打开失败', true));
+    if (img) openImageByUrl(img.getAttribute('src'));
   });
 
   box.addEventListener('dragend', () => {
@@ -2410,6 +2413,11 @@ function bind() {
   });
 
   bindImgDrag();
+
+  $('#pv-body').addEventListener('dblclick', (e) => {
+    const img = e.target.closest('img');
+    if (img) openImageByUrl(img.getAttribute('src'));
+  });
 
   $('#ed-title').addEventListener('input', updateSaveState);
   $('#ed-body').addEventListener('input', updateSaveState);

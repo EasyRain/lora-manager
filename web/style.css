@@ -370,7 +370,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .pv-body th{background:var(--panel2); color:var(--fg-strong)}
 .pv-body strong{color:var(--fg-strong)}
 .pv-body del{color:var(--dim2)}
-.pv-body .pv-img{width:auto; height:auto; max-width:100%; max-height:70vh; object-fit:contain; border-radius:8px; margin:10px 0; background:var(--img); display:block}
+.pv-body .pv-img{cursor:zoom-in;width:auto; height:auto; max-width:100%; max-height:70vh; object-fit:contain; border-radius:8px; margin:10px 0; background:var(--img); display:block}
 .pv-body .pv-sep{border-top:1px solid var(--line); margin:18px 0}
 .pv-body .pv-empty{color:var(--dim2)}
 
