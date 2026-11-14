@@ -1828,6 +1828,19 @@ function bind() {
     new ResizeObserver(() => updateScrollBtns()).observe($('#scroller'));
   }
 
+  /* 鼠标在可横滚的图片区上时，滚轮转成横向滚动 */
+  document.addEventListener('wheel', (e) => {
+    const box = e.target.closest('.cimgs, #ed-imgs');
+    if (!box || box.scrollWidth <= box.clientWidth + 1) return;
+    const d = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    if (!d) return;
+    const max = box.scrollWidth - box.clientWidth;
+    const next = Math.max(0, Math.min(max, box.scrollLeft + d));
+    if (next === box.scrollLeft) return;     // 到头了，把滚动还给页面
+    e.preventDefault();
+    box.scrollLeft = next;
+  }, { passive: false });
+
   /* 侧栏宽度拖动 */
   const SIDE_KEY = 'lora.sideW';
   let sideW = parseInt(localStorage.getItem(SIDE_KEY) || '172', 10);
