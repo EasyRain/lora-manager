@@ -1350,7 +1350,9 @@ function openChild(cardId, childId) {
   $('#ed-title').placeholder = t('标题（可留空），例如：提示词 / 备忘');
   $('#ed-title').value = k ? k.title || '' : '';
   $('#ed-body').value = k ? k.body || '' : '';
-  setThumbs(imgsOf(k));
+  edOriginals = imgsOf(k).slice();
+  edPending.clear();
+  setThumbs(edOriginals);
   $('#ed-del').style.display = childId ? '' : 'none';
   const fbtn = $('#ed-format');
   if (fbtn) { fbtn.dataset.undo = ''; fbtn.dataset.before = ''; fbtn.dataset.selpos = ''; fbtn.textContent = t('格式化'); }
@@ -1360,8 +1362,30 @@ function openChild(cardId, childId) {
   setTimeout(() => (k ? $('#ed-body') : $('#ed-title')).focus(), 30);
 }
 
+async function moveImagesToTrash(urls) {
+  const names = (urls || []).map((u) => String(u).split('/').pop()).filter(Boolean);
+  if (!names.length) return 0;
+  try {
+    const d = await postJson('/api/image/trash', { names });
+    return d.moved || 0;
+  } catch { return 0; }
+}
+
+async function removeImageFiles(urls, recycle) {
+  const names = (urls || [])
+    .map((u) => String(u).split('/').pop())
+    .filter(Boolean);
+  if (!names.length) return 0;
+  try {
+    const d = await postJson('/api/image/remove', { names, recycle: !!recycle });
+    return d.removed || 0;
+  } catch { return 0; }
+}
+
 /* ---------------- 多图 ---------------- */
 let edImgs = [];
+let edOriginals = [];              // 打开时卡片上的图
+let edPending = new Set();         // 本次编辑中新复制进来的图（未保存前去删要清掉）
 
 function imgsOf(k) {
   if (!k) return [];
@@ -1391,7 +1415,16 @@ function updateSaveState() {
   btn.disabled = !edHasContent();
 }
 
-function closeChild() { $('#modal').hidden = true; editingChild = null; }
+function closeChild(saved) {
+  if (!saved) {
+    // 没保存就关窗：把本次新复制进来的图删掉，原图不动
+    if (edPending.size) removeImageFiles([...edPending], false);   // 未保存的新图：直接删
+  }
+  edPending.clear();
+  edOriginals = [];
+  $('#modal').hidden = true;
+  editingChild = null;
+}
 
 function saveChild() {
   if (!editingChild) return;
@@ -1427,7 +1460,14 @@ function saveChild() {
     card.children.push({ id: uid('k_'), title, body, imgs, tags: [] });
   }
   card.updated = Date.now();
-  touch(); closeChild(); render();
+  const keep = new Set(imgs);
+  const removedSaved = edOriginals.filter((u) => !keep.has(u));        // 已保存过的 → 回收站
+  const removedFresh = [...edPending].filter((u) => !keep.has(u));     // 本次新传又删掉的 → 直接删
+  if (removedSaved.length) moveImagesToTrash(removedSaved);
+  if (removedFresh.length) removeImageFiles(removedFresh, false);
+  touch();
+  closeChild(true);
+  render();
 }
 
 async function uploadImages(files) {
@@ -1443,7 +1483,9 @@ async function uploadImages(files) {
     });
     if (!r.ok) { toast('图片上传失败', true); continue; }
     const d = await r.json();
-    edImgs.push(d.url); ok++;
+    edImgs.push(d.url);
+    edPending.add(d.url);
+    ok++;
   }
   setThumbs(edImgs);
   if (ok) toast(t('已加入 ') + ok + t(' 张图（保存后生效）'));
@@ -1550,6 +1592,8 @@ function claimFile(rel) {
   $('#ed-title').placeholder = '给「' + stemOf(rel) + '」写一条（标题可留空）';
   $('#ed-title').value = '';
   $('#ed-body').value = '';
+  edOriginals = [];
+  edPending.clear();
   setThumbs([]);
   $('#ed-del').style.display = 'none';
   $('#modal').hidden = false;

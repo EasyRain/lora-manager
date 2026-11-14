@@ -27,6 +27,13 @@ public class MainForm : Form
             DefaultBackgroundColor = Color.FromArgb(21, 21, 24),
         };
         Controls.Add(_web);
+        // 让后端能把「送回收站」这类 shell 操作丢回 UI 线程（STA + 消息泵）
+        Api.UiThread = (action) =>
+        {
+            if (!IsHandleCreated || IsDisposed) { action(); return; }
+            if (InvokeRequired) Invoke(action);   // 同步：等到 UI 线程跑完再返回
+            else action();
+        };
         Load += async (_, _) => await InitAsync();
         Application.AddMessageFilter(new SideButtonFilter(this));
     }

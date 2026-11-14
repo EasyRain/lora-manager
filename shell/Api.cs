@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.InteropServices;
 using Microsoft.VisualBasic.FileIO;
 using System.Net.Sockets;
 using System.Text.Encodings.Web;
@@ -15,6 +16,9 @@ namespace PromptNotebook;
 /// <summary>把原来 Python 那套 HTTP 接口原样搬到进程内，前端一行都不用改。</summary>
 public static class Api
 {
+    /// <summary>由 MainForm 注入：把 action 丢到 WinForms 主线程（STA + 有消息泵）执行。</summary>
+    public static Action<Action>? UiThread;
+
     public static string BaseDir => AppContext.BaseDirectory;
     public static string WebDir => Path.Combine(BaseDir, "web");
     public static string DataDir => Path.Combine(BaseDir, "data");
@@ -167,6 +171,77 @@ public static class Api
         return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
     }
 
+    // ---- 回收站删除 ----
+    // 教训：进程内直接调 SHFileOperation / Microsoft.VisualBasic.FileIO.FileSystem，
+    // 在 Kestrel 线程或 WinForms UI 线程上都会「返回成功但实际永久删除」。
+    // 只有独立 STA 进程（这里用 PowerShell）才真正落到回收站，故改为派生子进程执行。
+    [StructLayout(LayoutKind.Sequential)]
+    struct SHQUERYRBINFO
+    {
+        public int cbSize;
+        public long i64Size;
+        public long i64NumItems;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    static extern int SHQueryRecycleBin(string? pszRootPath, ref SHQUERYRBINFO pSHQueryRBInfo);
+
+    static long RecycleBinItems()
+    {
+        var info = new SHQUERYRBINFO { cbSize = Marshal.SizeOf<SHQUERYRBINFO>() };
+        var hr = SHQueryRecycleBin(null, ref info);
+        return hr == 0 ? info.i64NumItems : -1;
+    }
+
+    /// <summary>把文件送进回收站，返回真正消失掉的文件数。</summary>
+    static int RecycleFiles(IEnumerable<string> paths)
+    {
+        var list = paths.Where(File.Exists).ToList();
+        if (list.Count == 0) return 0;
+
+        var before = RecycleBinItems();
+
+        // 拼一段 PowerShell：逐个 DeleteFile 到回收站
+        var quoted = list.Select(p => "'" + p.Replace("'", "''") + "'");
+        var script =
+            "Add-Type -AssemblyName Microsoft.VisualBasic;" +
+            "foreach($p in @(" + string.Join(",", quoted) + ")){" +
+            " try{[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p,'OnlyErrorDialogs','SendToRecycleBin')}catch{} }";
+
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"" + script + "\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            using var proc = System.Diagnostics.Process.Start(psi);
+            proc!.WaitForExit(15000);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("recycle 子进程失败: " + ex.Message);
+        }
+
+        var after = RecycleBinItems();
+        var gone = list.Count(p => !File.Exists(p));
+        Log.Write($"recycle bin {before} -> {after}, gone {gone}/{list.Count}");
+
+        if (gone == list.Count) return gone;
+
+        // 兜底：仍然留在盘上的硬删，避免删一半
+        var n = 0;
+        foreach (var p in list.Where(File.Exists))
+        {
+            try { File.Delete(p); n++; } catch { }
+        }
+        return gone + n;
+    }
+
     public static WebApplication Build(int port)
     {
         var builder = WebApplication.CreateSlimBuilder();
@@ -269,6 +344,96 @@ public static class Api
             {
                 return Results.Json(new { error = e.Message }, statusCode: 500);
             }
+        });
+
+        // 删除 data/images 里的图片（只接受文件名，防止路径穿越）
+        app.MapPost("/api/image/remove", async (HttpContext ctx) =>
+        {
+            try
+            {
+                var body = await JsonNode.ParseAsync(ctx.Request.Body);
+                var arr = body?["names"]?.AsArray();
+                var list = new List<string>();
+                if (arr is not null)
+                {
+                    foreach (var it in arr)
+                    {
+                        var v = it?.GetValue<string>() ?? "";
+                        if (!string.IsNullOrWhiteSpace(v)) list.Add(v);
+                    }
+                }
+                else
+                {
+                    var one = body?["name"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrWhiteSpace(one)) list.Add(one);
+                }
+
+                var recycle = body?["recycle"]?.GetValue<bool>() ?? false;
+
+                var targets = new List<string>();
+                foreach (var raw in list)
+                {
+                    var fn = Path.GetFileName(raw.Trim());   // 丢弃任何目录部分
+                    if (string.IsNullOrWhiteSpace(fn)) continue;
+                    var full = Path.Combine(ImgDir, fn);
+                    if (!full.StartsWith(ImgDir, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!File.Exists(full)) continue;
+                    targets.Add(full);
+                }
+
+                int removed;
+                if (recycle)
+                {
+                    // 已保存过的图：进回收站，删错还能捞回来
+                    removed = RecycleFiles(targets);
+                }
+                else
+                {
+                    // 本次编辑刚复制进来、还没保存的：直接删，别污染回收站
+                    removed = 0;
+                    foreach (var f in targets)
+                    {
+                        try { File.Delete(f); removed++; } catch { }
+                    }
+                }
+                return Results.Json(new { ok = true, removed, recycle });
+            }
+            catch (Exception e)
+            {
+                return Results.Json(new { error = e.Message }, statusCode: 500);
+            }
+        });
+
+        // 把图片移到应用内回收站（data/images/_trash），比系统回收站可靠
+        app.MapPost("/api/image/trash", async (HttpContext ctx) =>
+        {
+            try
+            {
+                var body = await JsonNode.ParseAsync(ctx.Request.Body);
+                var arr = body?["names"]?.AsArray();
+                var trash = Path.Combine(ImgDir, "_trash");
+                Directory.CreateDirectory(trash);
+                var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                var moved = 0;
+                if (arr is not null)
+                {
+                    foreach (var it in arr)
+                    {
+                        var raw = it?.GetValue<string>() ?? "";
+                        var fn = Path.GetFileName(raw.Trim());
+                        if (string.IsNullOrWhiteSpace(fn)) continue;
+                        var src = Path.Combine(ImgDir, fn);
+                        if (!File.Exists(src)) continue;
+                        var dst = Path.Combine(trash, stamp + "-" + fn);
+                        var i = 1;
+                        while (File.Exists(dst)) dst = Path.Combine(trash, $"{stamp}-{i++}-{fn}");
+                        File.Move(src, dst);
+                        moved++;
+                    }
+                }
+                return Results.Json(new { ok = true, moved, dir = trash });
+            }
+            catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
         });
 
         app.MapPost("/api/reveal", () =>
@@ -426,15 +591,7 @@ public static class Api
                 if (full is null || full.Length == 0) return Results.Json(new { error = "越界路径" }, statusCode: 400);
                 if (!File.Exists(full)) return Results.Json(new { error = "文件不存在" }, statusCode: 404);
 
-                try
-                {
-                    // 进回收站，删错了还能捞回来
-                    FileSystem.DeleteFile(full, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-                }
-                catch
-                {
-                    File.Delete(full);
-                }
+                RecycleFiles(new[] { full });   // 进回收站（STA）
                 return Results.Json(new { ok = true, rel = Rel(root, full) });
             }
             catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
