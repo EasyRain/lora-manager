@@ -1392,7 +1392,9 @@ function markMissingImages(root) {
       const box = document.createElement('div');
       const cls = img.className || '';
       box.className = 'img-broken ' + cls;
-      box.textContent = t('图片已丢失');
+      const inner = document.createElement('span');
+      inner.textContent = t('图片已丢失');
+      box.appendChild(inner);
       box.title = img.getAttribute('src') || '';
       img.replaceWith(box);
     };
@@ -1471,6 +1473,7 @@ function setThumbs(list) {
        <button class="icon rm" data-rm-img="${i}" title="${t('移除图片')}">✕</button>
      </div>`).join('');
   box.hidden = false;
+  markMissingImages(box);
   updateSaveState();
 }
 

@@ -456,11 +456,17 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 
 /* 丢失图片的占位块（替换掉 img，避免碎图标和比例问题） */
 .img-broken{
-  display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  display:grid; place-content:center; place-items:center; flex:0 0 auto;
+  height:150px; width:auto; aspect-ratio:2 / 3;   /* 没带类名时也给个正常尺寸 */
   border:1px dashed var(--line); border-radius:6px; color:var(--muted, #888);
   font-size:12px; background:repeating-linear-gradient(45deg, #00000006 0 6px, transparent 6px 12px);
   box-sizing:border-box; text-align:center; padding:6px 0; overflow:hidden;
-  writing-mode:vertical-rl; letter-spacing:2px; line-height:1;
+}
+/* 竖排文字放在 span 里，flex 两端都能居中（直接写在 div 上会被挤到右边） */
+.img-broken > span{
+  /* 横排：竖排时行内起点在顶部，居中会跑偏 */
+  font-size:11px; line-height:1.4; letter-spacing:0;
+  max-width:100%; word-break:break-all;
 }
 /* 占位按 2:3 竖版，跟着普通图片一起排、一起横滚 */
 .img-broken.cimg, .img-broken.imgcell{ height:150px; width:auto; aspect-ratio:2 / 3 }
