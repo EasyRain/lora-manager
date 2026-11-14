@@ -1352,6 +1352,7 @@ function openChild(cardId, childId) {
   $('#ed-body').value = k ? k.body || '' : '';
   edOriginals = imgsOf(k).slice();
   edPending.clear();
+  edRestored.clear();
   setThumbs(edOriginals);
   $('#ed-del').style.display = childId ? '' : 'none';
   const fbtn = $('#ed-format');
@@ -1386,6 +1387,7 @@ async function removeImageFiles(urls, recycle) {
 let edImgs = [];
 let edOriginals = [];              // 打开时卡片上的图
 let edPending = new Set();         // 本次编辑中新复制进来的图（未保存前去删要清掉）
+let edRestored = new Set();        // 本次从回收站捞回来的图（取消时要放回去）
 
 function imgsOf(k) {
   if (!k) return [];
@@ -1419,8 +1421,10 @@ function closeChild(saved) {
   if (!saved) {
     // 没保存就关窗：把本次新复制进来的图删掉，原图不动
     if (edPending.size) removeImageFiles([...edPending], false);   // 未保存的新图：直接删
+    if (edRestored.size) moveImagesToTrash([...edRestored]);        // 从回收站捞回来的：放回去
   }
   edPending.clear();
+  edRestored.clear();
   edOriginals = [];
   $('#modal').hidden = true;
   editingChild = null;
@@ -1473,7 +1477,7 @@ function saveChild() {
 async function uploadImages(files) {
   const list = Array.from(files || []).filter(Boolean);
   if (!list.length) return;
-  let ok = 0;
+  let added = 0, reused = 0, dup = 0;
   for (const file of list) {
     const name = file.name && file.name !== 'image.png' ? file.name : 'paste.png';
     const r = await fetch('/api/image?name=' + encodeURIComponent(name), {
@@ -1483,12 +1487,22 @@ async function uploadImages(files) {
     });
     if (!r.ok) { toast('图片上传失败', true); continue; }
     const d = await r.json();
+    if (edImgs.includes(d.url)) { dup++; continue; }   // 本次编辑里已经有一模一样的
     edImgs.push(d.url);
-    edPending.add(d.url);
-    ok++;
+    if (d.dedup) {
+      reused++;
+      if (d.restored) edRestored.add(d.url);           // 从回收站捞回来的，取消时要放回
+    } else {
+      added++;
+      edPending.add(d.url);                            // 真正新落盘的，取消时要删掉
+    }
   }
   setThumbs(edImgs);
-  if (ok) toast(t('已加入 ') + ok + t(' 张图（保存后生效）'));
+  const bits = [];
+  if (added) bits.push(t('新增 ') + added);
+  if (reused) bits.push(t('复用 ') + reused);
+  if (dup) bits.push(t('已存在 ') + dup);
+  if (bits.length) toast(bits.join(' · ') + t(' 张（保存后生效）'));
 }
 
 /* ---------------- 大卡片编辑 / 移动 ---------------- */
@@ -1594,6 +1608,7 @@ function claimFile(rel) {
   $('#ed-body').value = '';
   edOriginals = [];
   edPending.clear();
+  edRestored.clear();
   setThumbs([]);
   $('#ed-del').style.display = 'none';
   $('#modal').hidden = false;

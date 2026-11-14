@@ -239,6 +239,10 @@ const I18N = {
     '已加入 ': 'Added ',
     ' 张图（保存后生效）': ' image(s) (applies after save)',
     '标题、正文、图片至少要有一项': 'Enter a title, some text, or an image first',
+    '新增 ': 'added ',
+    '复用 ': 'reused ',
+    '已存在 ': 'already present ',
+    ' 张（保存后生效）': ' image(s) (applies after save)',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

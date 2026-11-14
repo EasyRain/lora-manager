@@ -171,6 +171,84 @@ public static class Api
         return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
     }
 
+    // ---------- 图片去重：内容哈希 ----------
+    static readonly Dictionary<string, string> _imgHash = new(StringComparer.OrdinalIgnoreCase);
+    static bool _imgHashReady;
+
+    static string TrashDir => Path.Combine(ImgDir, "_trash");
+
+    /// <summary>首次使用时把 data/images 里已有图片的哈希建进内存表。</summary>
+    static void EnsureImgHash()
+    {
+        if (_imgHashReady) return;
+        _imgHash.Clear();
+        try
+        {
+            foreach (var f in Directory.EnumerateFiles(ImgDir))
+            {
+                try { _imgHash[Sha256File(f).GetAwaiter().GetResult()] = Path.GetFileName(f); }
+                catch { }
+            }
+        }
+        catch { }
+        _imgHashReady = true;
+    }
+
+    static string UrlOf(string fileName) => "/images/" + Uri.EscapeDataString(fileName);
+
+    /// <summary>在 _trash 里找同哈希的图；找到就搬回 images，返回文件名。</summary>
+    static string? TryRestoreFromTrash(string hash)
+    {
+        if (!Directory.Exists(TrashDir)) return null;
+        foreach (var f in Directory.EnumerateFiles(TrashDir))
+        {
+            string h;
+            try { h = Sha256File(f).GetAwaiter().GetResult(); } catch { continue; }
+            if (!string.Equals(h, hash, StringComparison.OrdinalIgnoreCase)) continue;
+
+            // 去掉 _trash 前缀的时间戳：20261114-232348-demo02.jpg → demo02.jpg
+            var baseName = Path.GetFileName(f);
+            var m = System.Text.RegularExpressions.Regex.Match(
+                baseName, @"^(?<stem>.*?)(?: \((?<n>\d+)\))?(?<ext>\.[^.]+)?$");
+            var target = m.Success
+                ? m.Groups["stem"].Value + m.Groups["ext"].Value
+                : baseName;
+
+            var dst = Path.Combine(ImgDir, target);
+            var k = 1;
+            while (File.Exists(dst))
+                dst = Path.Combine(ImgDir, Path.GetFileNameWithoutExtension(target) + "-" + k++ + Path.GetExtension(target));
+            try
+            {
+                File.Move(f, dst);
+                _imgHash[hash] = Path.GetFileName(dst);
+                Log.Write("image restored from _trash: " + baseName + " -> " + Path.GetFileName(dst));
+                return Path.GetFileName(dst);
+            }
+            catch { return null; }
+        }
+        return null;
+    }
+
+    /// <summary>library.json 里引用了这张图的条目数（用于判断能不能移走）。</summary>
+    static int RefCount(string fileName)
+    {
+        try
+        {
+            var txt = File.Exists(LibPath) ? File.ReadAllText(LibPath) : "";
+            if (txt.Length == 0) return 0;
+            var needle = "/images/" + fileName;
+            var escaped = "/images/" + Uri.EscapeDataString(fileName);
+            var n = 0;
+            var idx = 0;
+            while ((idx = txt.IndexOf(needle, idx, StringComparison.Ordinal)) >= 0) { n++; idx += needle.Length; }
+            idx = 0;
+            while ((idx = txt.IndexOf(escaped, idx, StringComparison.Ordinal)) >= 0) { n++; idx += escaped.Length; }
+            return n;
+        }
+        catch { return 0; }
+    }
+
     // ---- 回收站删除 ----
     // 教训：进程内直接调 SHFileOperation / Microsoft.VisualBasic.FileIO.FileSystem，
     // 在 Kestrel 线程或 WinForms UI 线程上都会「返回成功但实际永久删除」。
@@ -333,12 +411,27 @@ public static class Api
                 if (ms.Length == 0 || ms.Length > 64L * 1024 * 1024)
                     return Results.Json(new { error = "bad size" }, statusCode: 400);
 
-                // 统一命名：年月日-时分秒-4位随机，按名字排序就是时间顺序
+                var bytes = ms.ToArray();
+                var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
+
+                EnsureImgHash();
+
+                // ① 现有图片里已经有同一张 → 直接复用，不再存第二份
+                if (_imgHash.TryGetValue(hash, out var exist) && File.Exists(Path.Combine(ImgDir, exist)))
+                    return Results.Json(new { name = exist, url = UrlOf(exist), dedup = true });
+
+                // ② 回收站里有同一张 → 捞回来复用
+                var restored = TryRestoreFromTrash(hash);
+                if (restored is not null)
+                    return Results.Json(new { name = restored, url = UrlOf(restored), dedup = true, restored = true });
+
+                // ③ 都没有才落盘
                 var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
                 var rnd = Random.Shared.Next(0x1000, 0x10000).ToString("x4");
                 var final = $"{stamp}-{rnd}{ext}";
-                await File.WriteAllBytesAsync(Path.Combine(ImgDir, final), ms.ToArray());
-                return Results.Json(new { name = final, url = "/images/" + Uri.EscapeDataString(final) });
+                await File.WriteAllBytesAsync(Path.Combine(ImgDir, final), bytes);
+                _imgHash[hash] = final;
+                return Results.Json(new { name = final, url = UrlOf(final) });
             }
             catch (Exception e)
             {
@@ -393,7 +486,15 @@ public static class Api
                     removed = 0;
                     foreach (var f in targets)
                     {
-                        try { File.Delete(f); removed++; } catch { }
+                        try
+                        {
+                            File.Delete(f);
+                            var fn2 = Path.GetFileName(f);
+                            foreach (var k in _imgHash.Where(kv => kv.Value == fn2).Select(kv => kv.Key).ToList())
+                                _imgHash.Remove(k);
+                            removed++;
+                        }
+                        catch { }
                     }
                 }
                 return Results.Json(new { ok = true, removed, recycle });
@@ -424,10 +525,18 @@ public static class Api
                         if (string.IsNullOrWhiteSpace(fn)) continue;
                         var src = Path.Combine(ImgDir, fn);
                         if (!File.Exists(src)) continue;
-                        var dst = Path.Combine(trash, stamp + "-" + fn);
-                        var i = 1;
-                        while (File.Exists(dst)) dst = Path.Combine(trash, $"{stamp}-{i++}-{fn}");
+                        if (RefCount(fn) > 1) continue;      // 还有别的条目在用，不能动
+                        var dst = Path.Combine(trash, fn);
+                        var i = 2;
+                        while (File.Exists(dst))
+                        {
+                            var stem = Path.GetFileNameWithoutExtension(fn);
+                            var ext = Path.GetExtension(fn);
+                            dst = Path.Combine(trash, $"{stem} ({i++}){ext}");
+                        }
                         File.Move(src, dst);
+                        foreach (var k in _imgHash.Where(kv => kv.Value == fn).Select(kv => kv.Key).ToList())
+                            _imgHash.Remove(k);
                         moved++;
                     }
                 }
