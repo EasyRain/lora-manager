@@ -246,8 +246,14 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .thumbwrap{position:relative; flex:0 0 auto}
 .thumbwrap img{width:auto; height:auto; max-width:220px; max-height:150px; object-fit:contain; border-radius:8px; background:var(--img); display:block}
 .thumbwrap .rm{position:absolute; top:3px; right:3px; background:rgba(0,0,0,.7); color:#fff; border-radius:50%}
-.ed-actions{flex:1 1 auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-.grow{flex:1 1 auto}
+.ed-actions{flex:1 1 auto; display:flex; gap:8px; align-items:center;
+  flex-wrap:nowrap; min-width:0}       /* 有缩略图时也不许换行 */
+.ed-actions .btn{flex:0 0 auto}        /* 按钮永远保持自身宽度 */
+.grow{flex:1 1 auto; min-width:0}
+/* 空间不够时只压缩提示文字，按钮不动 */
+.ed-actions .hint{flex:0 1 auto; min-width:0; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis}
+@media (max-width: 700px){ .ed-actions .hint{display:none} }
 
 .cd-body{padding:14px 12px; display:flex; flex-direction:column; gap:10px}
 .cd-body .row{display:flex; align-items:center; gap:10px; color:var(--dim); font-size:13px}
