@@ -195,6 +195,9 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .child .cimg{width:auto; height:auto; max-width:100%; max-height:220px; object-fit:contain; border-radius:6px; margin-top:6px; background:var(--img); display:block}
 /* 卡片里同样单排横滚，避免卡片被多图撑高 */
 .child .cimgs{display:flex; gap:6px; margin-top:6px; overflow-x:auto; overflow-y:hidden}
+.child .cimgs::-webkit-scrollbar{height:6px}
+.child .cimgs::-webkit-scrollbar-thumb{background:var(--sb); border-radius:99px}
+.child .cimgs::-webkit-scrollbar-track{background:transparent}
 .child .cimgs .cimg{flex:0 0 auto; height:150px; width:auto; max-width:280px; object-fit:contain; margin-top:0; background:transparent}
 .child .acts{flex:0 0 auto; display:flex; gap:1px; align-items:flex-start; opacity:0}
 .child:hover .acts{opacity:1}
@@ -245,14 +248,19 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   line-height:1.75; font-size:13.5px;
 }
 .ed-body:focus{border-color:var(--accent)}
-.ed-foot{display:flex; gap:10px; padding:0 12px 12px; align-items:flex-end}
+.ed-foot{display:flex; gap:10px; padding:8px 12px 12px; align-items:flex-end}
 
 /* 编辑弹窗里的多图区：文字框下方，两列；没图时整块隐藏 */
 /* 单排横滚：图片保持 150px 高，多了就往右滚，不挤占按钮和文字区 */
 .ed-imgs{
-  display:flex; gap:8px; padding:0 12px 10px;
+  display:flex; gap:8px; padding:0 12px 4px;
   overflow-x:auto; overflow-y:hidden; align-items:flex-start;
 }
+/* 自己的细滚动条：6px，只在图片这排出现 */
+.ed-imgs::-webkit-scrollbar{height:6px}
+.ed-imgs::-webkit-scrollbar-thumb{background:var(--sb); border-radius:99px}
+.ed-imgs::-webkit-scrollbar-thumb:hover{background:var(--sb-hi)}
+.ed-imgs::-webkit-scrollbar-track{background:transparent}
 .ed-imgs[hidden]{display:none}
 .ed-imgs .imgcell{position:relative; flex:0 0 auto; border-radius:8px; overflow:hidden; background:transparent}
 .ed-imgs .imgcell img{height:150px; width:auto; max-width:300px; object-fit:contain; display:block}
