@@ -1223,6 +1223,8 @@ function bindDrag() {
 
     if (dragKey.type === 'child') {
       // 小卡片：可以拖到任意大卡片里，用虚线占位表示落点
+      // 先摘掉占位再测量：否则占位把自己撑开，位置每次都在变 → 抖动
+      hideChildSlot();
       const info = resolveChildDrop(e, dragKey.key);
       if (!info) { hideChildSlot(); return; }
       e.preventDefault();
