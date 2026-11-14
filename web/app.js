@@ -1126,6 +1126,7 @@ let childSlot = null;
 let shiftedEls = [];
 
 function showChildSlot(cardEl, top, height) {
+  cardEl.style.paddingBottom = Math.round(height + 6) + 'px';
   if (!childSlot) {
     childSlot = document.createElement('div');
     childSlot.className = 'drop-slot-child';
@@ -1137,7 +1138,10 @@ function showChildSlot(cardEl, top, height) {
 }
 
 function hideChildSlot() {
-  if (childSlot && !childSlot.hidden) childSlot.hidden = true;
+  if (childSlot) {
+    if (childSlot.parentNode) childSlot.parentNode.style.paddingBottom = '';
+    childSlot.hidden = true;
+  }
   clearShifts();
 }
 
@@ -1179,8 +1183,12 @@ function resolveChildDrop(e, srcKey) {
   const y = e.clientY - cardRect.top + cardEl.scrollTop;
 
   const els = [...cardEl.querySelectorAll(':scope > [data-child]')];
+  const headEl = cardEl.querySelector(':scope > .card-head');
+  const headBottom = headEl ? headEl.offsetTop + headEl.offsetHeight : 0;
   let domPos = els.length;
-  let top = cardEl.scrollHeight - 4;
+  let top = els.length
+    ? els[els.length - 1].offsetTop + els[els.length - 1].offsetHeight + 2
+    : headBottom + 2;
   for (let i = 0; i < els.length; i++) {
     if (y < els[i].offsetTop + els[i].offsetHeight / 2) {
       domPos = i;
