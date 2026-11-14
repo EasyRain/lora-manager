@@ -478,7 +478,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .img-broken.pv-img{ height:min(60vh, 420px); width:auto; aspect-ratio:2 / 3; margin:8px 0 }
 
 /* 编辑弹窗里拖动排序的视觉提示 */
-.ed-imgs .imgcell{cursor:grab; transition:margin-left .12s ease, margin-right .12s ease}
+.ed-imgs .imgcell{cursor:grab; will-change:transform}
 .ed-imgs .imgcell:active{cursor:grabbing}
 .ed-imgs .imgcell.drag-src{opacity:.3}
 /* 预插入位置：一个虚线空位，最直观 */

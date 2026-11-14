@@ -1478,20 +1478,39 @@ function startAutoScroll(box, dir) {
 
 let dropSlot = null;
 
+/* FLIP：改动 DOM 前记位置，改完让图从旧位置滑到新位置 */
+function withFlip(box, mutate) {
+  const cells = [...box.querySelectorAll('.imgcell')];
+  const first = new Map(cells.map((c) => [c, c.getBoundingClientRect().left]));
+  mutate();
+  for (const c of cells) {
+    const dx = first.get(c) - c.getBoundingClientRect().left;
+    if (!Math.round(dx)) continue;
+    c.style.transition = 'none';
+    c.style.transform = 'translateX(' + dx + 'px)';
+    void c.offsetWidth;
+    requestAnimationFrame(() => {
+      c.style.transition = 'transform .14s cubic-bezier(.2,.7,.3,1)';
+      c.style.transform = '';
+    });
+  }
+}
+
 function showDropSlot(box, at) {
   const cells = [...box.querySelectorAll('.imgcell')];
+  const ref = cells[at] || null;
+  if (dropSlot && dropSlot.parentNode === box && dropSlot.nextSibling === ref) return;  // 位置没变
   if (!dropSlot) {
     dropSlot = document.createElement('div');
     dropSlot.className = 'drop-slot';
   }
-  const ref = cells[at] || null;
-  if (dropSlot.parentNode !== box || dropSlot.nextSibling !== ref) {
-    box.insertBefore(dropSlot, ref);
-  }
+  withFlip(box, () => box.insertBefore(dropSlot, ref));
 }
 
 function hideDropSlot() {
-  if (dropSlot && dropSlot.parentNode) dropSlot.parentNode.removeChild(dropSlot);
+  if (!dropSlot || !dropSlot.parentNode) return;
+  const box = dropSlot.parentNode;
+  withFlip(box, () => box.removeChild(dropSlot));
 }
 
 function clearDropMarks() {
@@ -1539,8 +1558,14 @@ function bindImgDrag() {
       const c = cells[i].getBoundingClientRect();
       if (e.clientX < c.left + c.width / 2) { at = i; break; }
     }
-    imgDropAt = at;
-    showDropSlot(box, at);
+    // 落在自己身上（前/后）顺序不会变 → 不显示占位
+    if (at === imgDragFrom || at === imgDragFrom + 1) {
+      imgDropAt = -1;
+      hideDropSlot();
+    } else {
+      imgDropAt = at;
+      showDropSlot(box, at);
+    }
   });
 
   box.addEventListener('dragleave', (e) => {
