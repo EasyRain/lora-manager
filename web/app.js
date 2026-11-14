@@ -1391,6 +1391,7 @@ function markMissingImages(root) {
       const box = document.createElement('div');
       const cls = img.className || '';
       box.className = 'img-broken ' + cls;
+      box.dataset.idx = img.dataset.idx || '';
       const inner = document.createElement('span');
       inner.textContent = t('图片已丢失');
       box.appendChild(inner);
@@ -1477,6 +1478,9 @@ function startAutoScroll(box, dir) {
 }
 
 let dropSlot = null;
+let fileDropAt = null;      // 外部拖文件时的插入位置
+let fileReplaceAt = null;   // 拖到占位图上时的替换位置
+let pickReplaceAt = null;   // 双击占位图后选图要替换的位置
 
 /* FLIP：改动 DOM 前记位置，改完让图从旧位置滑到新位置 */
 function withFlip(box, mutate) {
@@ -1494,6 +1498,15 @@ function withFlip(box, mutate) {
       c.style.transform = '';
     });
   }
+}
+
+function indexFromX(box, clientX) {
+  const cells = [...box.querySelectorAll('.imgcell')];
+  for (let i = 0; i < cells.length; i++) {
+    const r = cells[i].getBoundingClientRect();
+    if (clientX < r.left + r.width / 2) return i;
+  }
+  return cells.length;
 }
 
 function showDropSlot(box, at) {
@@ -1595,6 +1608,22 @@ function bindImgDrag() {
     setTimeout(() => { internalImgDrag = false; }, 0);
   });
 
+  box.addEventListener('dblclick', (e) => {
+    const broken = e.target.closest('.img-broken');
+    if (broken) {                                  // 双击占位图 → 选一张替换
+      pickReplaceAt = Number(broken.dataset.idx);
+      $('#file').click();
+      return;
+    }
+    const img = e.target.closest('img');
+    if (!img) return;
+    const name = String(img.getAttribute('src') || '').split('/').pop();
+    if (!name) return;
+    postJson('/api/open', { name })
+      .then((d) => { if (d && d.error) toast(d.error, true); })
+      .catch(() => toast('打开失败', true));
+  });
+
   box.addEventListener('dragend', () => {
     stopAutoScroll();
     clearDropMarks();
@@ -1619,7 +1648,7 @@ function setThumbs(list) {
   const box = $('#ed-imgs');
   if (!edImgs.length) { box.hidden = true; box.innerHTML = ''; updateSaveState(); return; }
   box.innerHTML = edImgs.map((u, i) =>
-    `<div class="imgcell" draggable="true" data-idx="${i}"><img src="${esc(u)}" alt="" loading="lazy">
+    `<div class="imgcell" draggable="true" data-idx="${i}"><img src="${esc(u)}" alt="" data-idx="${i}" title="${t('双击用默认程序打开')}" loading="lazy">
        <button class="icon rm" data-rm-img="${i}" title="${t('移除图片')}">✕</button>
      </div>`).join('');
   box.hidden = false;
@@ -1694,10 +1723,13 @@ function saveChild() {
   refreshMissing();
 }
 
-async function uploadImages(files) {
+async function uploadImages(files, opts) {
   const list = Array.from(files || []).filter(Boolean);
   if (!list.length) return;
+  const at = opts && Number.isInteger(opts.at) ? opts.at : null;
+  const replaceAt = opts && Number.isInteger(opts.replace) ? opts.replace : null;
   let added = 0, reused = 0, dup = 0;
+  const fresh = [];
   for (const file of list) {
     const name = file.name && file.name !== 'image.png' ? file.name : 'paste.png';
     const r = await fetch('/api/image?name=' + encodeURIComponent(name), {
@@ -1707,14 +1739,23 @@ async function uploadImages(files) {
     });
     if (!r.ok) { toast('图片上传失败', true); continue; }
     const d = await r.json();
-    if (edImgs.includes(d.url)) { dup++; continue; }   // 本次编辑里已经有一模一样的
-    edImgs.push(d.url);
+    if (replaceAt === null && edImgs.includes(d.url)) { dup++; continue; }  // 已经有了
+    fresh.push(d.url);
     if (d.dedup) {
       reused++;
     } else {
       added++;
       edPending.add(d.url);                            // 真正新落盘的，取消时要删掉
     }
+  }
+
+  if (replaceAt !== null && fresh.length) {
+    edImgs[replaceAt] = fresh[0];                      // 替换掉指定位置（占位图）
+    edImgs.splice(replaceAt + 1, 0, ...fresh.slice(1));
+  } else if (at !== null && fresh.length) {
+    edImgs.splice(at, 0, ...fresh);                    // 插到指定位置
+  } else {
+    edImgs.push(...fresh);
   }
   setThumbs(edImgs);
   const bits = [];
@@ -2204,7 +2245,31 @@ function bind() {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     if (anyModalOpen()) {                       // 只给"可放下"的光标，不显示目录提示
-      $('#modal').classList.toggle('dropping', !$('#modal').hidden);
+      if ($('#modal').hidden) return;
+      const box = $('#ed-imgs');
+      if (box && !box.hidden) {
+        const r = box.getBoundingClientRect();
+        const inside = e.clientX >= r.left - 6 && e.clientX <= r.right + 6 &&
+                       e.clientY >= r.top - 12 && e.clientY <= r.bottom + 12;
+        if (inside) {
+          const el = document.elementFromPoint(e.clientX, e.clientY);
+          const broken = el && el.closest ? el.closest('.img-broken') : null;
+          document.querySelectorAll('#ed-imgs .drop-target').forEach((x) => x.classList.remove('drop-target'));
+          if (broken && broken.dataset.idx !== '') {
+            fileReplaceAt = Number(broken.dataset.idx);   // 拖到占位图上 = 直接替换它
+            fileDropAt = null;
+            hideDropSlot();
+            broken.classList.add('drop-target');
+          } else {
+            fileReplaceAt = null;
+            fileDropAt = indexFromX(box, e.clientX);
+            showDropSlot(box, fileDropAt);
+          }
+          return;
+        }
+      }
+      hideDropSlot();
+      fileDropAt = null; fileReplaceAt = null;
       return;
     }
     $('#dropdir').textContent = dirLabel(dropTargetDir(e));
@@ -2213,7 +2278,12 @@ function bind() {
     if (tile) tile.classList.add('drop');
   });
   document.addEventListener('dragleave', (e) => {
-    if (anyModalOpen() && !e.relatedTarget) $('#modal').classList.remove('dropping');
+    if (anyModalOpen() && !e.relatedTarget) {
+      $('#modal').classList.remove('dropping');
+      hideDropSlot();
+      document.querySelectorAll('#ed-imgs .drop-target').forEach((x) => x.classList.remove('drop-target'));
+      fileDropAt = null; fileReplaceAt = null;
+    }
     dragDepth = Math.max(0, dragDepth - 1);
     if (dragDepth === 0) {
       $('#dropmask').hidden = true;
@@ -2233,8 +2303,12 @@ function bind() {
 
     // 编辑界面开着：拖进来的是图片就设为配图，不是图片就不当成导入 LoRA
     if (anyModalOpen()) {
+      const at = fileDropAt, rep = fileReplaceAt;
+      hideDropSlot();
+      document.querySelectorAll('#ed-imgs .drop-target').forEach((x) => x.classList.remove('drop-target'));
+      fileDropAt = null; fileReplaceAt = null;
       const img = files.find((f) => (f.type || '').startsWith('image/'));
-      if (img && !$('#modal').hidden) return uploadImages([img]);
+      if (img && !$('#modal').hidden) return uploadImages([img], { at, replace: rep });
       if (img) return toast(t('这张卡片不放图片，图片请加在小卡片上'), true);
       return toast(t('编辑界面里只能拖图片进来；导入 LoRA 请在卡片区拖放'), true);
     }
@@ -2316,7 +2390,16 @@ function bind() {
     if (btn.dataset.undo === '1') { btn.dataset.undo = ''; btn.textContent = '格式化'; }
   });
   $('#ed-img').addEventListener('click', () => $('#file').click());
-  $('#file').addEventListener('change', (e) => { uploadImages(e.target.files); e.target.value = ''; });
+  $('#file').addEventListener('change', (e) => {
+    const files = e.target.files;
+    if (pickReplaceAt !== null) {
+      uploadImages(files, { replace: pickReplaceAt });
+      pickReplaceAt = null;
+    } else {
+      uploadImages(files);
+    }
+    e.target.value = '';
+  });
   $('#file-lora').addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';

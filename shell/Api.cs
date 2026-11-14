@@ -244,6 +244,49 @@ public static class Api
     const ushort FOF_NOERRORUI = 0x0400;
     const ushort FOF_WANTNUKEWARNING = 0x4000;   // 放不进回收站时先警告再彻底删除
 
+    // ---- 用系统默认程序打开文件/文件夹 ----
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr ShellExecuteW(IntPtr hwnd, string? lpOperation, string lpFile,
+                                       string? lpParameters, string? lpDirectory, int nShowCmd);
+
+    /// <summary>依次尝试 ShellExecute → UseShellExecute → rundll32，返回是否成功。</summary>
+    static bool OpenWithDefault(string path)
+    {
+        try
+        {
+            var r = (long)ShellExecuteW(IntPtr.Zero, "open", path, null, null, 1 /*SW_SHOWNORMAL*/);
+            if (r > 32) return true;
+            Log.Write("ShellExecute 失败 code=" + r);
+        }
+        catch (Exception e) { Log.Write("ShellExecute 异常: " + e.Message); }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+            });
+            return true;
+        }
+        catch (Exception e) { Log.Write("UseShellExecute 失败: " + e.Message); }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "rundll32.exe",
+                Arguments = "url.dll,FileProtocolHandler \"" + path + "\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+            return true;
+        }
+        catch (Exception e) { Log.Write("rundll32 失败: " + e.Message); }
+
+        return false;
+    }
+
     // ---- 回收站删除 ----
     // 教训：进程内直接调 SHFileOperation / Microsoft.VisualBasic.FileIO.FileSystem，
     // 在 Kestrel 线程或 WinForms UI 线程上都会「返回成功但实际永久删除」。
@@ -551,11 +594,29 @@ public static class Api
             catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
         });
 
+        // 用系统默认程序打开某张图片
+        app.MapPost("/api/open", async (HttpContext ctx) =>
+        {
+            try
+            {
+                var body = await JsonNode.ParseAsync(ctx.Request.Body);
+                var fn = Path.GetFileName((body?["name"]?.GetValue<string>() ?? "").Trim());
+                if (string.IsNullOrWhiteSpace(fn)) return Results.Json(new { error = "缺少文件名" }, statusCode: 400);
+                var full = Path.Combine(ImgDir, fn);
+                if (!full.StartsWith(ImgDir, StringComparison.OrdinalIgnoreCase) || !File.Exists(full))
+                    return Results.Json(new { error = "图片不存在" }, statusCode: 404);
+                if (!OpenWithDefault(full))
+                    return Results.Json(new { error = "系统没能打开这个文件（缺少关联程序？）" }, statusCode: 500);
+                return Results.Json(new { ok = true });
+            }
+            catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
+        });
+
         app.MapPost("/api/reveal", () =>
         {
             try
             {
-                System.Diagnostics.Process.Start("explorer.exe", DataDir);
+                OpenWithDefault(DataDir);
                 return Results.Json(new { ok = true });
             }
             catch (Exception e)
@@ -806,8 +867,15 @@ public static class Api
                 var rel = body?["path"]?.GetValue<string>() ?? "";
                 var full = SafeFull(root, rel);
                 if (full is null) return Results.Json(new { error = "越界路径" }, statusCode: 400);
-                if (Directory.Exists(full)) System.Diagnostics.Process.Start("explorer.exe", full);
-                else if (File.Exists(full)) System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + full + "\"");
+                // 目录 → 直接打开；文件 → 打开它所在的文件夹（不去"运行"这个文件）
+                if (Directory.Exists(full)) OpenWithDefault(full);
+                else if (File.Exists(full))
+                {
+                    var dir = Path.GetDirectoryName(full);
+                    if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+                        return Results.Json(new { error = "找不到所在目录" }, statusCode: 404);
+                    OpenWithDefault(dir);
+                }
                 else return Results.Json(new { error = "找不到" }, statusCode: 404);
                 return Results.Json(new { ok = true });
             }

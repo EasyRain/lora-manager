@@ -488,3 +488,14 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   border:2px dashed var(--accent); border-radius:8px;
   background:rgba(76,154,255,.10);
 }
+
+/* 编辑弹窗里双击的可用性提示 */
+.ed-imgs .imgcell img{cursor:zoom-in}
+.ed-imgs .imgcell .img-broken, .ed-imgs .imgcell .img-broken > span{cursor:copy}
+
+/* 拖图到占位图上：占位框自己变成蓝色虚线，表示"会替换它" */
+.ed-imgs .img-broken.drop-target{
+  border:2px dashed var(--accent);
+  background:rgba(76,154,255,.16);
+  color:var(--accent);
+}

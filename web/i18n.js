@@ -249,6 +249,7 @@ const I18N = {
     '已清理 ': 'Removed ',
     ' 条失效图片引用': ' broken image reference(s)',
     '图片已丢失': 'Image missing',
+    '双击用默认程序打开': 'Double-click to open',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',
