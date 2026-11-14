@@ -500,9 +500,25 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   color:var(--accent);
 }
 
-/* 卡片区拖动的竖版占位槽（和编辑弹窗里的虚线框同一套观感） */
-.drop-slot-v{
-  flex:0 0 auto; box-sizing:border-box; width:100%; pointer-events:none;
-  border:2px dashed var(--accent); border-radius:10px;
-  background:rgba(76,154,255,.10);
+/* ---------- 卡片区拖动：锚定卡片上的渐变提示 ---------- */
+.card.drop-above, .card.drop-below,
+.child.drop-above, .child.drop-below{ position:relative; }
+
+.card.drop-above::after, .child.drop-above::after,
+.card.drop-below::after, .child.drop-below::after{
+  position:absolute; left:0; right:0; z-index:6; pointer-events:none;
+  display:flex; justify-content:center;
+  font-size:12px; font-weight:600; color:#fff; letter-spacing:.5px;
+  text-shadow:0 1px 3px rgba(0,0,0,.35);
+  content:attr(data-drop-word);
+}
+.card.drop-above::after, .child.drop-above::after{
+  top:0; height:44%; padding-top:8px; align-items:flex-start;
+  border-top:3px solid var(--accent); border-radius:10px 10px 0 0;
+  background:linear-gradient(to bottom, rgba(76,154,255,.92), rgba(76,154,255,0));
+}
+.card.drop-below::after, .child.drop-below::after{
+  bottom:0; height:44%; padding-bottom:8px; align-items:flex-end;
+  border-bottom:3px solid var(--accent); border-radius:0 0 10px 10px;
+  background:linear-gradient(to top, rgba(76,154,255,.92), rgba(76,154,255,0));
 }

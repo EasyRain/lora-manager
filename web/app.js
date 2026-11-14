@@ -1066,85 +1066,10 @@ function bindMoveDrop() {
 
 function clearDropMarks() {
   document.querySelectorAll('.dragging').forEach((x) => x.classList.remove('dragging'));
-  document.querySelectorAll('.drop-before,.drop-after').forEach((x) => {
-    x.classList.remove('drop-before', 'drop-after');
-  });
-  hideCardSlot();
+  document.querySelectorAll('.drop-above,.drop-below,.drop-before,.drop-after')
+    .forEach((x) => x.classList.remove('drop-above', 'drop-below', 'drop-before', 'drop-after'));
   stopEdgeScroll();
   dragH = 0;
-}
-
-/* ---------------- 卡片区拖动：占位槽 / FLIP / 边缘滚动 ---------------- */
-let cardSlot = null;
-let dragH = 0;
-let scrollRaf = 0;
-let scrollDir = 0;
-
-function snapCards() {
-  const m = new Map();
-  document.querySelectorAll('.cards-wrap [data-card], .cards-wrap [data-child]').forEach((el) => {
-    const key = el.dataset.card ? 'c:' + el.dataset.card : 'k:' + el.dataset.child;
-    m.set(key, el.getBoundingClientRect());
-  });
-  return m;
-}
-
-function playFlip(snap) {
-  document.querySelectorAll('.cards-wrap [data-card], .cards-wrap [data-child]').forEach((el) => {
-    const key = el.dataset.card ? 'c:' + el.dataset.card : 'k:' + el.dataset.child;
-    const b = snap.get(key);
-    if (!b) return;
-    const a = el.getBoundingClientRect();
-    const dx = Math.round(b.left - a.left), dy = Math.round(b.top - a.top);
-    if (!dx && !dy) return;
-    el.style.transition = 'none';
-    el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-    void el.offsetWidth;
-    requestAnimationFrame(() => {
-      el.style.transition = 'transform .16s cubic-bezier(.2,.7,.3,1)';
-      el.style.transform = '';
-    });
-  });
-}
-
-function renderWithFlip() {
-  const snap = snapCards();
-  render();
-  playFlip(snap);
-}
-
-function showCardSlot(target, before, height) {
-  if (!cardSlot) {
-    cardSlot = document.createElement('div');
-    cardSlot.className = 'drop-slot-v';
-  }
-  cardSlot.style.height = Math.max(28, Math.round(height)) + 'px';
-  const ref = before ? target : target.nextSibling;
-  const parent = target.parentNode;
-  if (cardSlot.parentNode !== parent || cardSlot.nextSibling !== ref) parent.insertBefore(cardSlot, ref);
-}
-
-function hideCardSlot() {
-  if (cardSlot && cardSlot.parentNode) cardSlot.parentNode.removeChild(cardSlot);
-}
-
-/* 拖动到滚动区上下边缘时自动滚动 */
-function stopEdgeScroll() {
-  scrollDir = 0;
-  if (scrollRaf) cancelAnimationFrame(scrollRaf);
-  scrollRaf = 0;
-}
-
-function startEdgeScroll(scroller, dir) {
-  if (scrollDir === dir && scrollRaf) return;
-  stopEdgeScroll();
-  scrollDir = dir;
-  const step = () => {
-    if (!scrollDir) { stopEdgeScroll(); return; }
-    scroller.scrollTop += scrollDir * 14;
-    scrollRaf = requestAnimationFrame(step);
-  };
-  scrollRaf = requestAnimationFrame(step);
 }
 
 function bindDrag() {
@@ -1176,16 +1101,12 @@ function bindDrag() {
     try { e.dataTransfer.setData('text/plain', card.dataset.card); } catch (_) {}
   });
 
-  box.addEventListener('dragend', () => {
-    clearDropMarks();
-    dragKey = null;
-    stopEdgeScroll();
-  });
+  box.addEventListener('dragend', () => { clearDropMarks(); dragKey = null; });
 
   box.addEventListener('dragover', (e) => {
     if (!dragKey) return;
 
-    // 拖动到上下边缘时自动滚动
+    // 靠近滚动区上下边缘时自动滚动
     const scroller = $('#scroller') || box.parentNode;
     if (scroller && scroller.getBoundingClientRect) {
       const sr = scroller.getBoundingClientRect();
@@ -1202,18 +1123,19 @@ function bindDrag() {
       if (target.dataset.child === dragKey.key) return;
       if (target.dataset.child.split('|')[0] !== dragKey.key.split('|')[0]) return;
     }
+
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
 
     const r = target.getBoundingClientRect();
     const before = e.clientY < r.top + r.height / 2;
 
-    // 算一下这样放会不会真的改变顺序；不会就不显示占位
+    // 放这里会不会真的改变顺序？不会就不高亮
     let noop = false;
     if (dragKey.type === 'card') {
-      const full = orderedCards(curDir).map((c) => c.id);
-      const from = full.indexOf(dragKey.id);
-      const rest = full.filter((x) => x !== dragKey.id);
+      const ids = orderedCards(curDir).map((c) => c.id);
+      const from = ids.indexOf(dragKey.id);
+      const rest = ids.filter((x) => x !== dragKey.id);
       const at = rest.indexOf(target.dataset.card) + (before ? 0 : 1);
       noop = at === from;
     } else {
@@ -1225,8 +1147,13 @@ function bindDrag() {
       noop = at === from;
     }
 
-    if (noop) hideCardSlot();
-    else showCardSlot(target, before, dragH);
+    document.querySelectorAll('.drop-above,.drop-below')
+      .forEach((x) => x.classList.remove('drop-above', 'drop-below'));
+    if (noop) return;
+
+    target.classList.add(before ? 'drop-above' : 'drop-below');
+    if (dragKey.type === 'card') target.dataset.dropWord = before ? '放到这张卡片之前' : '放到这张卡片之后';
+    else target.dataset.dropWord = before ? '排在这一条之前' : '排在这一条之后';
   });
 
   box.addEventListener('drop', (e) => {
@@ -1234,12 +1161,14 @@ function bindDrag() {
     const target = e.target.closest(dragKey.type === 'card' ? '[data-card]' : '[data-child]');
     if (!target) { clearDropMarks(); dragKey = null; return; }
     e.preventDefault();
+
     const r = target.getBoundingClientRect();
     const before = e.clientY < r.top + r.height / 2;
+    const key = dragKey;
 
-    if (dragKey.type === 'card') {
-      const moved = lib.cards.find((c) => c.id === dragKey.id);
-      const list = orderedCards(curDir).filter((c) => c.id !== dragKey.id);
+    if (key.type === 'card') {
+      const moved = lib.cards.find((c) => c.id === key.id);
+      const list = orderedCards(curDir).filter((c) => c.id !== key.id);
       const idx = list.findIndex((c) => c.id === target.dataset.card);
       if (moved && idx >= 0) {
         list.splice(idx + (before ? 0 : 1), 0, moved);
@@ -1247,7 +1176,7 @@ function bindDrag() {
         touch();
       }
     } else {
-      const [cid, kid] = dragKey.key.split('|');
+      const [cid, kid] = key.key.split('|');
       const card = lib.cards.find((c) => c.id === cid);
       const arr = (card.children || []).slice();
       const from = arr.findIndex((k) => k.id === kid);
@@ -1261,11 +1190,13 @@ function bindDrag() {
         touch();
       }
     }
+
     clearDropMarks();
     dragKey = null;
     renderWithFlip();
   });
 }
+
 
 /* ---------------- 选择 / 复制 ---------------- */
 const pendingClick = new Map();   // key -> timer，用来区分单击和快速双击
