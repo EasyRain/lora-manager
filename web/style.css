@@ -78,6 +78,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   border-radius:7px; cursor:pointer; white-space:nowrap; transition:.12s;
 }
 .btn:hover{background:var(--hover3); border-color:var(--border-hi)}
+.btn:disabled{opacity:.45; cursor:not-allowed; filter:grayscale(.3)}
+.btn:disabled:hover{background:var(--panel); border-color:var(--line)}
 .btn.ghost{background:transparent}
 .btn.ghost:hover{background:var(--hover2)}
 .btn.primary{background:var(--accent2); border-color:var(--accent); color:#fff}

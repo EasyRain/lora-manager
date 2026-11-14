@@ -714,10 +714,15 @@ function childHTML(card, k) {
   const img = imgs.length
     ? `<div class="cimgs">` + imgs.map((u) => `<img class="cimg" src="${esc(u)}" loading="lazy" alt="">`).join('') + `</div>`
     : '';
+  const titleTxt = (k.title || '').trim();
+  const bodyTxt = (k.body || '').trim();
+  const head = (titleTxt || n >= 0 || tags)
+    ? `<div class="ct">${titleTxt ? `<span class="tt">${esc(titleTxt)}</span>` : ''}${n >= 0 ? `<span class="selno">${n + 1}</span>` : ''}${tags}</div>`
+    : '';
   return `<div class="child ${n >= 0 ? 'selected' : ''}" draggable="true" data-child="${esc(key)}">
     <div class="mid">
-      <div class="ct"><span class="tt">${esc(k.title || '正文')}</span>${n >= 0 ? `<span class="selno">${n + 1}</span>` : ''}${tags}</div>
-      <div class="cb">${esc(k.body || '')}</div>
+      ${head}
+      ${bodyTxt ? `<div class="cb">${esc(k.body || '')}</div>` : ''}
       ${img}
     </div>
     <div class="acts">
@@ -1351,6 +1356,7 @@ function openChild(cardId, childId) {
   if (fbtn) { fbtn.dataset.undo = ''; fbtn.dataset.before = ''; fbtn.dataset.selpos = ''; fbtn.textContent = t('格式化'); }
   $('#ed-del').dataset.draft = '';
   $('#modal').hidden = false;
+  updateSaveState();
   setTimeout(() => (k ? $('#ed-body') : $('#ed-title')).focus(), 30);
 }
 
@@ -1366,12 +1372,23 @@ function imgsOf(k) {
 function setThumbs(list) {
   edImgs = (list || []).filter(Boolean).slice();
   const box = $('#ed-imgs');
-  if (!edImgs.length) { box.hidden = true; box.innerHTML = ''; return; }
+  if (!edImgs.length) { box.hidden = true; box.innerHTML = ''; updateSaveState(); return; }
   box.innerHTML = edImgs.map((u, i) =>
     `<div class="imgcell"><img src="${esc(u)}" alt="" loading="lazy">
        <button class="icon rm" data-rm-img="${i}" title="${t('移除图片')}">✕</button>
      </div>`).join('');
   box.hidden = false;
+  updateSaveState();
+}
+
+function edHasContent() {
+  return !!($('#ed-title').value.trim() || $('#ed-body').value.trim() || edImgs.length);
+}
+
+function updateSaveState() {
+  const btn = $('#ed-save');
+  if (!btn) return;
+  btn.disabled = !edHasContent();
 }
 
 function closeChild() { $('#modal').hidden = true; editingChild = null; }
@@ -1381,11 +1398,13 @@ function saveChild() {
   const title = $('#ed-title').value.trim();
   const body = $('#ed-body').value;
   const imgs = edImgs.slice();
-  const empty = !title && !body.trim() && !imgs.length;
+  if (!title && !body.trim() && !imgs.length) {
+    toast('标题、正文、图片至少要有一项', true);
+    return;                                   // 不关窗，让用户继续填或点取消
+  }
 
   let card = editingChild.cardId ? lib.cards.find((x) => x.id === editingChild.cardId) : null;
   if (!card) {
-    if (empty) return closeChild();            // 取消 → 不建卡
     card = {
       id: uid('g_'),
       path: editingChild.path || '',
@@ -2025,6 +2044,9 @@ function bind() {
     e.target.value = '';
     if (files.length) await uploadFiles(files, importDir);
   });
+  $('#ed-title').addEventListener('input', updateSaveState);
+  $('#ed-body').addEventListener('input', updateSaveState);
+
   $('#ed-imgs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-rm-img]');
     if (!b) return;
