@@ -459,12 +459,17 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   display:grid; place-content:center; place-items:center; flex:0 0 auto;
   height:150px; width:auto; aspect-ratio:2 / 3;   /* 没带类名时也给个正常尺寸 */
   border:1px dashed var(--line); border-radius:6px; color:var(--muted, #888);
-  font-size:12px; background:repeating-linear-gradient(45deg, #00000006 0 6px, transparent 6px 12px);
-  box-sizing:border-box; text-align:center; padding:6px 0; overflow:hidden;
+  font-size:12px; box-sizing:border-box; text-align:center; padding:6px 0;
+  overflow:hidden; position:relative;
+}
+/* 斜纹用伪元素铺，避免被 .child .cimgs .cimg 之类更高优先级的 background 盖掉 */
+.img-broken::before{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(45deg, #00000010 0 6px, transparent 6px 12px);
 }
 /* 竖排文字放在 span 里，flex 两端都能居中（直接写在 div 上会被挤到右边） */
 .img-broken > span{
-  /* 横排：竖排时行内起点在顶部，居中会跑偏 */
+  position:relative; z-index:1;            /* 文字压在斜纹之上 */
   font-size:11px; line-height:1.4; letter-spacing:0;
   max-width:100%; word-break:break-all;
 }
