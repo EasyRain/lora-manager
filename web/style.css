@@ -522,3 +522,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   border-bottom:3px solid var(--accent); border-radius:0 0 10px 10px;
   background:linear-gradient(to top, rgba(76,154,255,.92), rgba(76,154,255,0));
 }
+
+/* 小卡片拖动落点：虚线占位（和大卡片区的渐变提示并存） */
+.drop-slot-child{
+  box-sizing:border-box; width:100%; pointer-events:none;
+  border:2px dashed var(--accent); border-radius:8px;
+  background:rgba(76,154,255,.10);
+}

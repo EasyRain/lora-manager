@@ -1120,10 +1120,59 @@ function renderWithFlip() {
   playFlip(snap);
 }
 
+/* 小卡片：虚线占位 + 跨卡片落点解析 */
+let childSlot = null;
+
+function showChildSlot(cardEl, refEl, height) {
+  if (!childSlot) {
+    childSlot = document.createElement('div');
+    childSlot.className = 'drop-slot-child';
+  }
+  childSlot.style.height = Math.max(24, Math.round(height)) + 'px';
+  if (childSlot.parentNode !== cardEl || childSlot.nextSibling !== refEl) {
+    cardEl.insertBefore(childSlot, refEl || null);
+  }
+}
+
+function hideChildSlot() {
+  if (childSlot && childSlot.parentNode) childSlot.parentNode.removeChild(childSlot);
+}
+
+/* 返回 { cardEl, card, at, refEl, noop } */
+function resolveChildDrop(e, srcKey) {
+  const cardEl = e.target.closest('[data-card]');
+  if (!cardEl) return null;
+  const card = lib.cards.find((c) => c.id === cardEl.dataset.card);
+  if (!card) return null;
+
+  const [srcCardId, srcKid] = srcKey.split('|');
+  const kids = card.children || [];
+  const restIds = kids.filter((k) => k.id !== srcKid).map((k) => k.id);
+
+  const childEl = e.target.closest('[data-child]');
+  let at, refEl;
+  if (childEl && childEl.dataset.child) {
+    const tid = childEl.dataset.child.split('|')[1];
+    const r = childEl.getBoundingClientRect();
+    const before = e.clientY < r.top + r.height / 2;
+    const i = restIds.indexOf(tid);
+    at = (i < 0 ? restIds.length : i) + (before ? 0 : 1);
+    refEl = before ? childEl : childEl.nextSibling;
+  } else {
+    at = restIds.length;                       // 落在卡片空白处 → 放到末尾
+    refEl = null;
+  }
+
+  const origAt = kids.findIndex((k) => k.id === srcKid);
+  const noop = srcCardId === cardEl.dataset.card && origAt >= 0 && at === origAt;
+  return { cardEl, card, at, refEl, noop };
+}
+
 function clearDropMarks() {
   document.querySelectorAll('.dragging').forEach((x) => x.classList.remove('dragging'));
   document.querySelectorAll('.drop-above,.drop-below,.drop-before,.drop-after')
     .forEach((x) => x.classList.remove('drop-above', 'drop-below', 'drop-before', 'drop-after'));
+  hideChildSlot();
   stopEdgeScroll();
   dragH = 0;
 }
@@ -1172,13 +1221,20 @@ function bindDrag() {
       else stopEdgeScroll();
     }
 
-    const target = e.target.closest(dragKey.type === 'card' ? '[data-card]' : '[data-child]');
-    if (!target) return;
-    if (dragKey.type === 'card' && target.dataset.card === dragKey.id) return;
     if (dragKey.type === 'child') {
-      if (target.dataset.child === dragKey.key) return;
-      if (target.dataset.child.split('|')[0] !== dragKey.key.split('|')[0]) return;
+      // 小卡片：可以拖到任意大卡片里，用虚线占位表示落点
+      const info = resolveChildDrop(e, dragKey.key);
+      if (!info) { hideChildSlot(); return; }
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if (info.noop) hideChildSlot();
+      else showChildSlot(info.cardEl, info.refEl, dragH);
+      return;
     }
+
+    const target = e.target.closest('[data-card]');
+    if (!target) return;
+    if (target.dataset.card === dragKey.id) return;
 
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
@@ -1187,21 +1243,10 @@ function bindDrag() {
     const before = e.clientY < r.top + r.height / 2;
 
     // 放这里会不会真的改变顺序？不会就不高亮
-    let noop = false;
-    if (dragKey.type === 'card') {
-      const ids = orderedCards(curDir).map((c) => c.id);
-      const from = ids.indexOf(dragKey.id);
-      const rest = ids.filter((x) => x !== dragKey.id);
-      const at = rest.indexOf(target.dataset.card) + (before ? 0 : 1);
-      noop = at === from;
-    } else {
-      const card = lib.cards.find((c) => c.id === dragKey.key.split('|')[0]);
-      const ids = (card.children || []).map((k) => k.id);
-      const from = ids.indexOf(dragKey.key.split('|')[1]);
-      const rest = ids.filter((x) => x !== dragKey.key.split('|')[1]);
-      const at = rest.indexOf(target.dataset.child.split('|')[1]) + (before ? 0 : 1);
-      noop = at === from;
-    }
+    const ids = orderedCards(curDir).map((c) => c.id);
+    const fromIdx = ids.indexOf(dragKey.id);
+    const restIds = ids.filter((x) => x !== dragKey.id);
+    const noop = (restIds.indexOf(target.dataset.card) + (before ? 0 : 1)) === fromIdx;
 
     document.querySelectorAll('.drop-above,.drop-below')
       .forEach((x) => x.classList.remove('drop-above', 'drop-below'));
@@ -1214,7 +1259,7 @@ function bindDrag() {
 
   box.addEventListener('drop', (e) => {
     if (!dragKey) return;
-    const target = e.target.closest(dragKey.type === 'card' ? '[data-card]' : '[data-child]');
+    const target = e.target.closest('[data-card]');
     if (!target) { clearDropMarks(); dragKey = null; return; }
     e.preventDefault();
 
@@ -1232,18 +1277,22 @@ function bindDrag() {
         touch();
       }
     } else {
-      const [cid, kid] = key.key.split('|');
-      const card = lib.cards.find((c) => c.id === cid);
-      const arr = (card.children || []).slice();
-      const from = arr.findIndex((k) => k.id === kid);
-      if (from >= 0) {
-        const moved = arr.splice(from, 1)[0];
-        const to = arr.findIndex((k) => k.id === target.dataset.child.split('|')[1]);
-        if (to >= 0) arr.splice(to + (before ? 0 : 1), 0, moved);
-        else arr.push(moved);
-        card.children = arr;
-        card.updated = Date.now();
-        touch();
+      const info = resolveChildDrop(e, key.key);
+      if (info) {
+        const [srcCardId, kid] = key.key.split('|');
+        const src = lib.cards.find((c) => c.id === srcCardId);
+        const from = (src.children || []).findIndex((k) => k.id === kid);
+        if (from >= 0) {
+          const moved = src.children.splice(from, 1)[0];
+          const dst = info.card === src ? src : info.card;
+          dst.children = dst.children || [];
+          const restLen = dst.children.length;
+          const at = Math.max(0, Math.min(restLen, info.at));
+          dst.children.splice(at, 0, moved);
+          src.updated = Date.now();
+          dst.updated = Date.now();
+          touch();
+        }
       }
     }
 
