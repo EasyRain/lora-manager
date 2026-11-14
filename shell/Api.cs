@@ -264,6 +264,19 @@ public static class Api
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     static extern int SHQueryRecycleBin(string? pszRootPath, ref SHQUERYRBINFO pSHQueryRBInfo);
 
+    /// <summary>该盘是否有可用回收站（没有时 SHFileOperation 会静默直接删除）。</summary>
+    static bool DriveHasRecycleBin(string path)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(path));
+            if (string.IsNullOrEmpty(root)) return false;
+            var info = new SHQUERYRBINFO { cbSize = Marshal.SizeOf<SHQUERYRBINFO>() };
+            return SHQueryRecycleBin(root, ref info) == 0;
+        }
+        catch { return false; }
+    }
+
     static long RecycleBinItems()
     {
         var info = new SHQUERYRBINFO { cbSize = Marshal.SizeOf<SHQUERYRBINFO>() };
@@ -276,6 +289,15 @@ public static class Api
     {
         var list = paths.Where(File.Exists).ToList();
         if (list.Count == 0) return 0;
+
+        if (!DriveHasRecycleBin(list[0]))
+        {
+            Log.Write("该卷没有可用回收站（SHQueryRecycleBin 失败），只能永久删除: " +
+                      string.Join(",", list.Select(Path.GetFileName)));
+            var n0 = 0;
+            foreach (var p in list) { try { File.Delete(p); n0++; } catch { } }
+            return n0;
+        }
 
         var before = RecycleBinItems();
 
