@@ -1069,6 +1069,82 @@ function clearDropMarks() {
   document.querySelectorAll('.drop-before,.drop-after').forEach((x) => {
     x.classList.remove('drop-before', 'drop-after');
   });
+  hideCardSlot();
+  stopEdgeScroll();
+  dragH = 0;
+}
+
+/* ---------------- 卡片区拖动：占位槽 / FLIP / 边缘滚动 ---------------- */
+let cardSlot = null;
+let dragH = 0;
+let scrollRaf = 0;
+let scrollDir = 0;
+
+function snapCards() {
+  const m = new Map();
+  document.querySelectorAll('.cards-wrap [data-card], .cards-wrap [data-child]').forEach((el) => {
+    const key = el.dataset.card ? 'c:' + el.dataset.card : 'k:' + el.dataset.child;
+    m.set(key, el.getBoundingClientRect());
+  });
+  return m;
+}
+
+function playFlip(snap) {
+  document.querySelectorAll('.cards-wrap [data-card], .cards-wrap [data-child]').forEach((el) => {
+    const key = el.dataset.card ? 'c:' + el.dataset.card : 'k:' + el.dataset.child;
+    const b = snap.get(key);
+    if (!b) return;
+    const a = el.getBoundingClientRect();
+    const dx = Math.round(b.left - a.left), dy = Math.round(b.top - a.top);
+    if (!dx && !dy) return;
+    el.style.transition = 'none';
+    el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    void el.offsetWidth;
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform .16s cubic-bezier(.2,.7,.3,1)';
+      el.style.transform = '';
+    });
+  });
+}
+
+function renderWithFlip() {
+  const snap = snapCards();
+  render();
+  playFlip(snap);
+}
+
+function showCardSlot(target, before, height) {
+  if (!cardSlot) {
+    cardSlot = document.createElement('div');
+    cardSlot.className = 'drop-slot-v';
+  }
+  cardSlot.style.height = Math.max(28, Math.round(height)) + 'px';
+  const ref = before ? target : target.nextSibling;
+  const parent = target.parentNode;
+  if (cardSlot.parentNode !== parent || cardSlot.nextSibling !== ref) parent.insertBefore(cardSlot, ref);
+}
+
+function hideCardSlot() {
+  if (cardSlot && cardSlot.parentNode) cardSlot.parentNode.removeChild(cardSlot);
+}
+
+/* 拖动到滚动区上下边缘时自动滚动 */
+function stopEdgeScroll() {
+  scrollDir = 0;
+  if (scrollRaf) cancelAnimationFrame(scrollRaf);
+  scrollRaf = 0;
+}
+
+function startEdgeScroll(scroller, dir) {
+  if (scrollDir === dir && scrollRaf) return;
+  stopEdgeScroll();
+  scrollDir = dir;
+  const step = () => {
+    if (!scrollDir) { stopEdgeScroll(); return; }
+    scroller.scrollTop += scrollDir * 14;
+    scrollRaf = requestAnimationFrame(step);
+  };
+  scrollRaf = requestAnimationFrame(step);
 }
 
 function bindDrag() {
@@ -1083,6 +1159,7 @@ function bindDrag() {
     const child = e.target.closest('[data-child]');
     if (child) {
       dragKey = { type: 'child', key: child.dataset.child };
+      dragH = child.getBoundingClientRect().height;
       child.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
       try { e.dataTransfer.setData('text/plain', child.dataset.child); } catch (_) {}
@@ -1093,15 +1170,31 @@ function bindDrag() {
     const card = head.closest('[data-card]');
     if (!card) return;
     dragKey = { type: 'card', id: card.dataset.card };
+    dragH = card.getBoundingClientRect().height;
     card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', card.dataset.card); } catch (_) {}
   });
 
-  box.addEventListener('dragend', () => { clearDropMarks(); dragKey = null; });
+  box.addEventListener('dragend', () => {
+    clearDropMarks();
+    dragKey = null;
+    stopEdgeScroll();
+  });
 
   box.addEventListener('dragover', (e) => {
     if (!dragKey) return;
+
+    // 拖动到上下边缘时自动滚动
+    const scroller = $('#scroller') || box.parentNode;
+    if (scroller && scroller.getBoundingClientRect) {
+      const sr = scroller.getBoundingClientRect();
+      const EDGE = 70;
+      if (e.clientY < sr.top + EDGE) startEdgeScroll(scroller, -1);
+      else if (e.clientY > sr.bottom - EDGE) startEdgeScroll(scroller, 1);
+      else stopEdgeScroll();
+    }
+
     const target = e.target.closest(dragKey.type === 'card' ? '[data-card]' : '[data-child]');
     if (!target) return;
     if (dragKey.type === 'card' && target.dataset.card === dragKey.id) return;
@@ -1110,11 +1203,30 @@ function bindDrag() {
       if (target.dataset.child.split('|')[0] !== dragKey.key.split('|')[0]) return;
     }
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+
     const r = target.getBoundingClientRect();
     const before = e.clientY < r.top + r.height / 2;
-    document.querySelectorAll('.drop-before,.drop-after').forEach((x) => x.classList.remove('drop-before', 'drop-after'));
-    target.classList.add(before ? 'drop-before' : 'drop-after');
+
+    // 算一下这样放会不会真的改变顺序；不会就不显示占位
+    let noop = false;
+    if (dragKey.type === 'card') {
+      const full = orderedCards(curDir).map((c) => c.id);
+      const from = full.indexOf(dragKey.id);
+      const rest = full.filter((x) => x !== dragKey.id);
+      const at = rest.indexOf(target.dataset.card) + (before ? 0 : 1);
+      noop = at === from;
+    } else {
+      const card = lib.cards.find((c) => c.id === dragKey.key.split('|')[0]);
+      const ids = (card.children || []).map((k) => k.id);
+      const from = ids.indexOf(dragKey.key.split('|')[1]);
+      const rest = ids.filter((x) => x !== dragKey.key.split('|')[1]);
+      const at = rest.indexOf(target.dataset.child.split('|')[1]) + (before ? 0 : 1);
+      noop = at === from;
+    }
+
+    if (noop) hideCardSlot();
+    else showCardSlot(target, before, dragH);
   });
 
   box.addEventListener('drop', (e) => {
@@ -1151,7 +1263,7 @@ function bindDrag() {
     }
     clearDropMarks();
     dragKey = null;
-    render();
+    renderWithFlip();
   });
 }
 

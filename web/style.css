@@ -499,3 +499,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   background:rgba(76,154,255,.16);
   color:var(--accent);
 }
+
+/* 卡片区拖动的竖版占位槽（和编辑弹窗里的虚线框同一套观感） */
+.drop-slot-v{
+  flex:0 0 auto; box-sizing:border-box; width:100%;
+  border:2px dashed var(--accent); border-radius:10px;
+  background:rgba(76,154,255,.10);
+}
