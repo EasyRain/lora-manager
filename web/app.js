@@ -1064,6 +1064,62 @@ function bindMoveDrop() {
   wire($('#crumb'), (t) => t.closest('[data-dir]'));
 }
 
+/* ---------------- 卡片拖动：状态 / FLIP / 边缘滚动 ---------------- */
+let dragH = 0;
+let scrollRaf = 0;
+let scrollDir = 0;
+
+function stopEdgeScroll() {
+  scrollDir = 0;
+  if (scrollRaf) cancelAnimationFrame(scrollRaf);
+  scrollRaf = 0;
+}
+
+function startEdgeScroll(scroller, dir) {
+  if (scrollDir === dir && scrollRaf) return;
+  stopEdgeScroll();
+  scrollDir = dir;
+  const step = () => {
+    if (!scrollDir || !scroller.isConnected) { stopEdgeScroll(); return; }
+    scroller.scrollTop += scrollDir * 14;
+    scrollRaf = requestAnimationFrame(step);
+  };
+  scrollRaf = requestAnimationFrame(step);
+}
+
+function snapCards() {
+  const m = new Map();
+  document.querySelectorAll('.cards-wrap [data-card], .cards-wrap [data-child]').forEach((el) => {
+    const key = el.dataset.card ? 'c:' + el.dataset.card : 'k:' + el.dataset.child;
+    m.set(key, el.getBoundingClientRect());
+  });
+  return m;
+}
+
+function playFlip(snap) {
+  document.querySelectorAll('.cards-wrap [data-card], .cards-wrap [data-child]').forEach((el) => {
+    const key = el.dataset.card ? 'c:' + el.dataset.card : 'k:' + el.dataset.child;
+    const b = snap.get(key);
+    if (!b) return;
+    const a = el.getBoundingClientRect();
+    const dx = Math.round(b.left - a.left), dy = Math.round(b.top - a.top);
+    if (!dx && !dy) return;
+    el.style.transition = 'none';
+    el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    void el.offsetWidth;
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform .16s cubic-bezier(.2,.7,.3,1)';
+      el.style.transform = '';
+    });
+  });
+}
+
+function renderWithFlip() {
+  const snap = snapCards();
+  render();
+  playFlip(snap);
+}
+
 function clearDropMarks() {
   document.querySelectorAll('.dragging').forEach((x) => x.classList.remove('dragging'));
   document.querySelectorAll('.drop-above,.drop-below,.drop-before,.drop-after')
