@@ -260,7 +260,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   display:flex; gap:8px; align-items:flex-start;
   margin:0 12px 2px; padding:10px 10px 8px;
   border:1px solid var(--line); border-radius:9px; background:var(--bg);
-  overflow-x:auto; overflow-y:hidden;
+  /* 常驻滚动条槽位：不论有没有滚动条，图片位置都不变 */
+  overflow-x:scroll; overflow-y:hidden;
 }
 /* 自己的细滚动条：6px，只在图片这排出现 */
 .ed-imgs::-webkit-scrollbar{height:6px}
