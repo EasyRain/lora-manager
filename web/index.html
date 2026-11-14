@@ -64,11 +64,8 @@
       <button class="icon" id="ed-close" data-i18n-title="关闭 (Esc)">✕</button>
     </div>
     <textarea id="ed-body" class="ed-body" data-i18n-ph="写点什么…（回车保存，Shift+回车换行，可直接粘贴截图）"></textarea>
+    <div class="ed-imgs" id="ed-imgs" hidden></div>
     <div class="ed-foot">
-      <div class="thumbwrap" id="thumbwrap">
-        <img id="thumb" alt="">
-        <button class="icon rm" id="ed-rmimg" data-i18n-title="移除图片">✕</button>
-      </div>
       <div class="ed-actions">
         <button class="btn ghost" id="ed-img" data-i18n="选图">选图</button>
         <button class="btn ghost" id="ed-copy" data-i18n="复制正文">复制正文</button>
@@ -79,7 +76,7 @@
         <button class="btn primary" id="ed-save" data-i18n="保存">保存</button>
       </div>
     </div>
-    <input type="file" id="file" accept="image/*" hidden>
+    <input type="file" id="file" accept="image/*" multiple hidden>
     <input type="file" id="file-lora" accept=".safetensors,.sft,.ckpt,.pt,.pth,.bin" multiple hidden>
   </div>
 </div>

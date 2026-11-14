@@ -193,6 +193,9 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
 }
 .child .cimg{width:auto; height:auto; max-width:100%; max-height:220px; object-fit:contain; border-radius:6px; margin-top:6px; background:var(--img); display:block}
+/* 卡片里同样单排横滚，避免卡片被多图撑高 */
+.child .cimgs{display:flex; gap:6px; margin-top:6px; overflow-x:auto; overflow-y:hidden}
+.child .cimgs .cimg{flex:0 0 auto; height:150px; width:auto; max-width:280px; object-fit:contain; margin-top:0; background:transparent}
 .child .acts{flex:0 0 auto; display:flex; gap:1px; align-items:flex-start; opacity:0}
 .child:hover .acts{opacity:1}
 .child .acts .icon{font-size:12px; padding:2px 4px}
@@ -243,9 +246,22 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 }
 .ed-body:focus{border-color:var(--accent)}
 .ed-foot{display:flex; gap:10px; padding:0 12px 12px; align-items:flex-end}
-.thumbwrap{position:relative; flex:0 0 auto}
-.thumbwrap img{width:auto; height:auto; max-width:220px; max-height:150px; object-fit:contain; border-radius:8px; background:var(--img); display:block}
-.thumbwrap .rm{position:absolute; top:3px; right:3px; background:rgba(0,0,0,.7); color:#fff; border-radius:50%}
+
+/* 编辑弹窗里的多图区：文字框下方，两列；没图时整块隐藏 */
+/* 单排横滚：图片保持 150px 高，多了就往右滚，不挤占按钮和文字区 */
+.ed-imgs{
+  display:flex; gap:8px; padding:0 12px 10px;
+  overflow-x:auto; overflow-y:hidden; align-items:flex-start;
+}
+.ed-imgs[hidden]{display:none}
+.ed-imgs .imgcell{position:relative; flex:0 0 auto; border-radius:8px; overflow:hidden; background:transparent}
+.ed-imgs .imgcell img{height:150px; width:auto; max-width:300px; object-fit:contain; display:block}
+.ed-imgs .imgcell .rm{
+  position:absolute; top:5px; right:5px; background:rgba(0,0,0,.72); color:#fff;
+  border-radius:50%; width:22px; height:22px; line-height:1; font-size:12px;
+  display:flex; align-items:center; justify-content:center;
+}
+.ed-imgs .imgcell .rm:hover{background:var(--danger, #d9534f)}
 .ed-actions{flex:1 1 auto; display:flex; gap:8px; align-items:center;
   flex-wrap:nowrap; min-width:0}       /* 有缩略图时也不许换行 */
 .ed-actions .btn{flex:0 0 auto}        /* 按钮永远保持自身宽度 */
@@ -351,8 +367,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .child .ct:active{cursor:grabbing}
 
 /* 编辑弹窗里拖图片时的提示 */
-#modal.dropping .ed-foot{outline:2px dashed var(--accent); outline-offset:-6px; border-radius:10px}
-#modal.dropping .thumbwrap::after{
+#modal.dropping .ed-imgs, #modal.dropping .ed-body{outline:2px dashed var(--accent); outline-offset:-6px; border-radius:10px}
+#modal.dropping .ed-body::after{
   content:'拖到这里'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   border:2px dashed var(--accent); border-radius:8px; color:var(--accent); font-size:12px; background:var(--bg);
 }

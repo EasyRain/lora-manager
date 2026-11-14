@@ -236,6 +236,8 @@ const I18N = {
     '已移动到 ': 'Moved to ',
     '回到顶部': 'Back to top',
     '滚到底部': 'Scroll to bottom',
+    '已加入 ': 'Added ',
+    ' 张图（保存后生效）': ' image(s) (applies after save)',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

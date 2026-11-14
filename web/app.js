@@ -99,6 +99,18 @@ function normalize() {
   let changed = false;
   lib.cards.forEach((c) => {
     const kids = c.children || [];
+    // 单图 → 多图
+    kids.forEach((k) => {
+      if (k.img !== undefined) {
+        const arr = Array.isArray(k.imgs) ? k.imgs : [];
+        if (k.img && !arr.includes(k.img)) arr.unshift(k.img);
+        k.imgs = arr.filter(Boolean);
+        delete k.img;
+        changed = true;
+      } else if (!Array.isArray(k.imgs)) {
+        k.imgs = [];
+      }
+    });
     if (!c.w) {
       for (const k of kids) {
         const t = (k.tags || []).find((x) => String(x).startsWith('权重'));
@@ -698,7 +710,10 @@ function childHTML(card, k) {
   const key = card.id + '|' + k.id;
   const n = sel.indexOf(key);
   const tags = (k.tags || []).length ? '<span class="tagm">' + (k.tags || []).map(esc).join(' · ') + '</span>' : '';
-  const img = k.img ? `<img class="cimg" src="${esc(k.img)}" loading="lazy" alt="">` : '';
+  const imgs = imgsOf(k);
+  const img = imgs.length
+    ? `<div class="cimgs">` + imgs.map((u) => `<img class="cimg" src="${esc(u)}" loading="lazy" alt="">`).join('') + `</div>`
+    : '';
   return `<div class="child ${n >= 0 ? 'selected' : ''}" draggable="true" data-child="${esc(key)}">
     <div class="mid">
       <div class="ct"><span class="tt">${esc(k.title || '正文')}</span>${n >= 0 ? `<span class="selno">${n + 1}</span>` : ''}${tags}</div>
@@ -1300,14 +1315,14 @@ function openPreview(cardId, childId) {
     if (!k) return;
     title = (card.title || '') + ' · ' + (k.title || t('正文'));
     raw = k.body || '';
-    html = (k.img ? `<img class="pv-img" src="${esc(k.img)}" alt="">` : '') + md(raw);
+    html = imgsOf(k).map((u) => `<img class="pv-img" src="${esc(u)}" alt="">`).join('') + md(raw);
   } else {
     const kids = card.children || [];
     title = card.title || t('(无标题)');
     raw = kids.map((k) => (k.body || '')).filter(Boolean).join('\n\n');
     html = kids.length
       ? kids.map((k) => `<h3>${esc(k.title || t('正文'))}</h3>` +
-          (k.img ? `<img class="pv-img" src="${esc(k.img)}" alt="">` : '') +
+          imgsOf(k).map((u) => `<img class="pv-img" src="${esc(u)}" alt="">`).join('') +
           md(k.body || '')).join('<hr class="pv-sep">')
       : `<p class="pv-empty">${t('这张卡还没有提示词。')}</p>`;
   }
@@ -1330,7 +1345,7 @@ function openChild(cardId, childId) {
   $('#ed-title').placeholder = t('标题（可留空），例如：提示词 / 备忘');
   $('#ed-title').value = k ? k.title || '' : '';
   $('#ed-body').value = k ? k.body || '' : '';
-  setThumb(k ? k.img : '');
+  setThumbs(imgsOf(k));
   $('#ed-del').style.display = childId ? '' : 'none';
   const fbtn = $('#ed-format');
   if (fbtn) { fbtn.dataset.undo = ''; fbtn.dataset.before = ''; fbtn.dataset.selpos = ''; fbtn.textContent = t('格式化'); }
@@ -1339,10 +1354,24 @@ function openChild(cardId, childId) {
   setTimeout(() => (k ? $('#ed-body') : $('#ed-title')).focus(), 30);
 }
 
-function setThumb(url) {
-  $('#thumbwrap').dataset.url = url || '';
-  if (url) { $('#thumb').src = url; $('#thumbwrap').hidden = false; }
-  else { $('#thumb').removeAttribute('src'); $('#thumbwrap').hidden = true; }
+/* ---------------- 多图 ---------------- */
+let edImgs = [];
+
+function imgsOf(k) {
+  if (!k) return [];
+  if (Array.isArray(k.imgs)) return k.imgs.filter(Boolean);
+  return k.img ? [k.img] : [];
+}
+
+function setThumbs(list) {
+  edImgs = (list || []).filter(Boolean).slice();
+  const box = $('#ed-imgs');
+  if (!edImgs.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.innerHTML = edImgs.map((u, i) =>
+    `<div class="imgcell"><img src="${esc(u)}" alt="" loading="lazy">
+       <button class="icon rm" data-rm-img="${i}" title="${t('移除图片')}">✕</button>
+     </div>`).join('');
+  box.hidden = false;
 }
 
 function closeChild() { $('#modal').hidden = true; editingChild = null; }
@@ -1351,8 +1380,8 @@ function saveChild() {
   if (!editingChild) return;
   const title = $('#ed-title').value.trim();
   const body = $('#ed-body').value;
-  const img = $('#thumbwrap').dataset.url || '';
-  const empty = !title && !body.trim() && !img;
+  const imgs = edImgs.slice();
+  const empty = !title && !body.trim() && !imgs.length;
 
   let card = editingChild.cardId ? lib.cards.find((x) => x.id === editingChild.cardId) : null;
   if (!card) {
@@ -1373,27 +1402,32 @@ function saveChild() {
   }
   if (editingChild.childId) {
     const k = card.children.find((x) => x.id === editingChild.childId);
-    if (k) Object.assign(k, { title, body, img });
-    else card.children.push({ id: uid('k_'), title, body, img, tags: [] });
+    if (k) Object.assign(k, { title, body, imgs });
+    else card.children.push({ id: uid('k_'), title, body, imgs, tags: [] });
   } else {
-    card.children.push({ id: uid('k_'), title, body, img, tags: [] });
+    card.children.push({ id: uid('k_'), title, body, imgs, tags: [] });
   }
   card.updated = Date.now();
   touch(); closeChild(); render();
 }
 
-async function uploadImage(file) {
-  if (!file) return;
-  const name = file.name && file.name !== 'image.png' ? file.name : 'paste.png';
-  const r = await fetch('/api/image?name=' + encodeURIComponent(name), {
-    method: 'POST',
-    headers: { 'Content-Type': file.type || 'application/octet-stream' },
-    body: file,
-  });
-  if (!r.ok) return toast('图片上传失败', true);
-  const d = await r.json();
-  setThumb(d.url);
-  toast(t('图片已加入（保存后生效）'));
+async function uploadImages(files) {
+  const list = Array.from(files || []).filter(Boolean);
+  if (!list.length) return;
+  let ok = 0;
+  for (const file of list) {
+    const name = file.name && file.name !== 'image.png' ? file.name : 'paste.png';
+    const r = await fetch('/api/image?name=' + encodeURIComponent(name), {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+    if (!r.ok) { toast('图片上传失败', true); continue; }
+    const d = await r.json();
+    edImgs.push(d.url); ok++;
+  }
+  setThumbs(edImgs);
+  if (ok) toast(t('已加入 ') + ok + t(' 张图（保存后生效）'));
 }
 
 /* ---------------- 大卡片编辑 / 移动 ---------------- */
@@ -1497,7 +1531,7 @@ function claimFile(rel) {
   $('#ed-title').placeholder = '给「' + stemOf(rel) + '」写一条（标题可留空）';
   $('#ed-title').value = '';
   $('#ed-body').value = '';
-  setThumb('');
+  setThumbs([]);
   $('#ed-del').style.display = 'none';
   $('#modal').hidden = false;
   setTimeout(() => $('#ed-body').focus(), 30);
@@ -1890,7 +1924,7 @@ function bind() {
     // 编辑界面开着：拖进来的是图片就设为配图，不是图片就不当成导入 LoRA
     if (anyModalOpen()) {
       const img = files.find((f) => (f.type || '').startsWith('image/'));
-      if (img && !$('#modal').hidden) return uploadImage(img);
+      if (img && !$('#modal').hidden) return uploadImages([img]);
       if (img) return toast(t('这张卡片不放图片，图片请加在小卡片上'), true);
       return toast(t('编辑界面里只能拖图片进来；导入 LoRA 请在卡片区拖放'), true);
     }
@@ -1972,16 +2006,21 @@ function bind() {
     if (btn.dataset.undo === '1') { btn.dataset.undo = ''; btn.textContent = '格式化'; }
   });
   $('#ed-img').addEventListener('click', () => $('#file').click());
-  $('#file').addEventListener('change', (e) => uploadImage(e.target.files[0]));
+  $('#file').addEventListener('change', (e) => { uploadImages(e.target.files); e.target.value = ''; });
   $('#file-lora').addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (files.length) await uploadFiles(files, importDir);
   });
-  $('#ed-rmimg').addEventListener('click', () => setThumb(''));
+  $('#ed-imgs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rm-img]');
+    if (!b) return;
+    const i = Number(b.dataset.rmImg);
+    if (Number.isFinite(i)) { edImgs.splice(i, 1); setThumbs(edImgs); }
+  });
   $('#ed-body').addEventListener('paste', (e) => {
     const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith('image/'));
-    if (item) { e.preventDefault(); uploadImage(item.getAsFile()); }
+    if (item) { e.preventDefault(); uploadImages([item.getAsFile()]); }
   });
   $('#ed-body').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
