@@ -1451,6 +1451,133 @@ function cleanMissingRefs() {
   toast(t('已清理 ') + n + t(' 条失效图片引用'));
 }
 
+/* ---------------- 编辑弹窗：拖动排序 ---------------- */
+let imgDragFrom = -1;          // 正在拖第几张
+let imgDropAt = -1;            // 打算插到哪个位置
+let internalImgDrag = false;   // 标记「这是内部拖动」，别当成文件导入
+let autoScrollRaf = 0;
+let autoScrollDir = 0;
+
+function stopAutoScroll() {
+  autoScrollDir = 0;
+  if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf);
+  autoScrollRaf = 0;
+}
+
+function startAutoScroll(box, dir) {
+  if (autoScrollDir === dir && autoScrollRaf) return;
+  stopAutoScroll();
+  autoScrollDir = dir;
+  const step = () => {
+    if (!autoScrollDir || !box.isConnected) { stopAutoScroll(); return; }
+    box.scrollLeft += autoScrollDir * 14;
+    autoScrollRaf = requestAnimationFrame(step);
+  };
+  autoScrollRaf = requestAnimationFrame(step);
+}
+
+let dropSlot = null;
+
+function showDropSlot(box, at) {
+  const cells = [...box.querySelectorAll('.imgcell')];
+  if (!dropSlot) {
+    dropSlot = document.createElement('div');
+    dropSlot.className = 'drop-slot';
+  }
+  const ref = cells[at] || null;
+  if (dropSlot.parentNode !== box || dropSlot.nextSibling !== ref) {
+    box.insertBefore(dropSlot, ref);
+  }
+}
+
+function hideDropSlot() {
+  if (dropSlot && dropSlot.parentNode) dropSlot.parentNode.removeChild(dropSlot);
+}
+
+function clearDropMarks() {
+  document.querySelectorAll('#ed-imgs .imgcell').forEach((c) => {
+    c.classList.remove('drag-src');
+  });
+  hideDropSlot();
+}
+
+function bindImgDrag() {
+  const box = $('#ed-imgs');
+  if (!box || box.dataset.dragBound) return;
+  box.dataset.dragBound = '1';
+
+  box.addEventListener('dragstart', (e) => {
+    const cell = e.target.closest('.imgcell');
+    if (!cell) return;
+    internalImgDrag = true;
+    e.stopPropagation();                          // 别让全局导入逻辑接管这次拖动
+    imgDragFrom = Number(cell.dataset.idx);
+    cell.classList.add('drag-src');
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/x-img-idx', String(imgDragFrom)); } catch { }
+      try { e.dataTransfer.setData('text/plain', ''); } catch { }
+    }
+  });
+
+  box.addEventListener('dragover', (e) => {
+    if (!internalImgDrag) return;                 // 外部拖文件交给导入逻辑
+    e.preventDefault();
+    e.stopPropagation();                          // 关键：别让上层把 dropEffect 改回 copy
+    if (e.dataTransfer) { try { e.dataTransfer.dropEffect = 'move'; } catch { } }
+
+    const cells = [...box.querySelectorAll('.imgcell')];
+    const r = box.getBoundingClientRect();
+    const EDGE = 48;
+    if (e.clientX < r.left + EDGE) startAutoScroll(box, -1);
+    else if (e.clientX > r.right - EDGE) startAutoScroll(box, 1);
+    else stopAutoScroll();
+
+    // 插入位置：落在哪张的左半边就插在它前面
+    let at = cells.length;
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i].getBoundingClientRect();
+      if (e.clientX < c.left + c.width / 2) { at = i; break; }
+    }
+    imgDropAt = at;
+    showDropSlot(box, at);
+  });
+
+  box.addEventListener('dragleave', (e) => {
+    if (!internalImgDrag) return;
+    e.stopPropagation();
+    if (!box.contains(e.relatedTarget)) { stopAutoScroll(); clearDropMarks(); }
+  });
+
+  box.addEventListener('drop', (e) => {
+    if (!internalImgDrag) return;
+    e.preventDefault();
+    e.stopPropagation();                          // 别让全局 drop 当成图片导入
+    stopAutoScroll();
+    clearDropMarks();
+
+    const from = imgDragFrom;
+    let at = imgDropAt;
+    if (from >= 0 && at >= 0) {
+      if (at > from) at -= 1;                     // 移除自身后位置前移
+      if (at !== from) {
+        const moved = edImgs.splice(from, 1)[0];
+        edImgs.splice(at, 0, moved);
+        setThumbs(edImgs);
+      }
+    }
+    imgDragFrom = -1; imgDropAt = -1;
+    setTimeout(() => { internalImgDrag = false; }, 0);
+  });
+
+  box.addEventListener('dragend', () => {
+    stopAutoScroll();
+    clearDropMarks();
+    imgDragFrom = -1; imgDropAt = -1;
+    setTimeout(() => { internalImgDrag = false; }, 0);
+  });
+}
+
 /* ---------------- 多图 ---------------- */
 let edImgs = [];
 let edOriginals = [];              // 打开时卡片上的图
@@ -1467,7 +1594,7 @@ function setThumbs(list) {
   const box = $('#ed-imgs');
   if (!edImgs.length) { box.hidden = true; box.innerHTML = ''; updateSaveState(); return; }
   box.innerHTML = edImgs.map((u, i) =>
-    `<div class="imgcell"><img src="${esc(u)}" alt="" loading="lazy">
+    `<div class="imgcell" draggable="true" data-idx="${i}"><img src="${esc(u)}" alt="" loading="lazy">
        <button class="icon rm" data-rm-img="${i}" title="${t('移除图片')}">✕</button>
      </div>`).join('');
   box.hidden = false;
@@ -2069,6 +2196,7 @@ function bind() {
     }
   });
   document.addEventListener('drop', async (e) => {
+    if (internalImgDrag) return;                  // 内部拖动排序，不当作导入
     dragDepth = 0;
     $('#dropmask').hidden = true;
     document.querySelectorAll('.tile.drop').forEach((x) => x.classList.remove('drop'));
@@ -2172,6 +2300,8 @@ function bind() {
   document.addEventListener('click', (e) => {
     if (e.target.closest('#btn-clean-missing')) cleanMissingRefs();
   });
+
+  bindImgDrag();
 
   $('#ed-title').addEventListener('input', updateSaveState);
   $('#ed-body').addEventListener('input', updateSaveState);
