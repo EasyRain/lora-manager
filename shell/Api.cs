@@ -249,6 +249,29 @@ public static class Api
         catch { return 0; }
     }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct SHFILEOPSTRUCT
+    {
+        public IntPtr hwnd;
+        public uint wFunc;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pFrom;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? pTo;
+        public ushort fFlags;
+        public int fAnyOperationsAborted;
+        public IntPtr hNameMappings;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? lpszProgressTitle;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    static extern int SHFileOperation(ref SHFILEOPSTRUCT lpFileOp);
+
+    const uint FO_DELETE = 0x0003;
+    const ushort FOF_SILENT = 0x0004;
+    const ushort FOF_NOCONFIRMATION = 0x0010;
+    const ushort FOF_ALLOWUNDO = 0x0040;
+    const ushort FOF_NOERRORUI = 0x0400;
+    const ushort FOF_WANTNUKEWARNING = 0x4000;   // 放不进回收站时先警告再彻底删除
+
     // ---- 回收站删除 ----
     // 教训：进程内直接调 SHFileOperation / Microsoft.VisualBasic.FileIO.FileSystem，
     // 在 Kestrel 线程或 WinForms UI 线程上都会「返回成功但实际永久删除」。
@@ -301,35 +324,21 @@ public static class Api
 
         var before = RecycleBinItems();
 
-        // 拼一段 PowerShell：逐个 DeleteFile 到回收站
-        var quoted = list.Select(p => "'" + p.Replace("'", "''") + "'");
-        var script =
-            "Add-Type -AssemblyName Microsoft.VisualBasic;" +
-            "foreach($p in @(" + string.Join(",", quoted) + ")){" +
-            " try{[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p,'OnlyErrorDialogs','SendToRecycleBin')}catch{} }";
-
-        try
+        // 进程内直接 SHFileOperation：多文件用 \0 分隔，末尾再补一个 \0
+        var from = string.Join("\0", list) + "\0\0";
+        var op = new SHFILEOPSTRUCT
         {
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "powershell.exe",
-                Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"" + script + "\"",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            using var proc = System.Diagnostics.Process.Start(psi);
-            proc!.WaitForExit(15000);
-        }
-        catch (Exception ex)
-        {
-            Log.Write("recycle 子进程失败: " + ex.Message);
-        }
+            wFunc = FO_DELETE,
+            pFrom = from,
+            fFlags = (ushort)(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI | FOF_WANTNUKEWARNING),
+        };
+        int hr;
+        try { hr = SHFileOperation(ref op); }
+        catch (Exception ex) { hr = -1; Log.Write("SHFileOperation 异常: " + ex.Message); }
 
         var after = RecycleBinItems();
         var gone = list.Count(p => !File.Exists(p));
-        Log.Write($"recycle bin {before} -> {after}, gone {gone}/{list.Count}");
+        Log.Write($"recycle hr={hr} bin {before} -> {after}, gone {gone}/{list.Count}");
 
         if (gone == list.Count) return gone;
 
