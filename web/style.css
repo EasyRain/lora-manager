@@ -224,7 +224,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 }
 /* 固定两排：上面状态，下面按钮 */
 .selbar .selrow{display:flex; align-items:center; gap:12px; min-width:0}
-.selbar .selrow-btns{gap:8px}
+.selbar .selrow-btns{gap:8px; justify-content:center}
 .selcount b{color:var(--selb); font-size:15px}
 /* 名称过长时只截断它自己，不要把按钮挤到第二行 */
 .selbar .selcount,.selbar label,.selbar button{flex:0 0 auto}
