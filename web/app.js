@@ -402,7 +402,10 @@ function toggleCivHost(rel, card) {
 
 /* 匹配结果的域名偏好：civitai.com / civitai.red */
 function preferRed() {
-  try { return localStorage.getItem('civPreferRed') === '1'; } catch { return false; }
+  try {
+    const v = localStorage.getItem('civPreferRed');
+    return v === null ? true : v === '1';    // 默认 .red：正常模型在 .red 也能打开
+  } catch { return true; }
 }
 function setPreferRed(on) {
   try { localStorage.setItem('civPreferRed', on ? '1' : '0'); } catch { }
@@ -2371,7 +2374,7 @@ function bind() {
       { label: t('刷新这个目录'), run: async () => { await loadTree(); render(); toast(t('已刷新')); } },
       { label: t('重新匹配全部 Civitai（清空缓存）'), run: () => rematchEverything() },
       {
-        label: (preferRed() ? '✓ ' : '') + t('匹配链接优先用 civitai.red'),
+        label: t('匹配链接优先用 civitai.red') + (preferRed() ? '  ✓' : ''),
         run: async () => {
           setPreferRed(!preferRed());
           toast(preferRed() ? t('以后匹配都用 civitai.red') : t('以后匹配都用 civitai.com'));
