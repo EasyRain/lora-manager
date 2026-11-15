@@ -803,7 +803,9 @@ public static class Api
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("lora-manager/0.1");
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                using var resp = await http.GetAsync("https://civitai.com/api/v1/models?limit=1", cts.Token);
+                var resp = await http.GetAsync("https://civitai.com/api/v1/models?limit=1", cts.Token);
+                if (!resp.IsSuccessStatusCode)
+                    resp = await http.GetAsync("https://civitai.red/api/v1/models?limit=1", cts.Token);
                 return Results.Json(new { ok = resp.IsSuccessStatusCode, ms = sw.ElapsedMilliseconds, status = (int)resp.StatusCode });
             }
             catch (Exception e)
@@ -833,20 +835,34 @@ public static class Api
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("lora-manager/0.1");
                 http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
 
-                using var resp = await http.GetAsync("https://civitai.com/api/v1/model-versions/by-hash/" + hash);
-                if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
-                    return Results.Json(new { found = false, hash });
-                if (!resp.IsSuccessStatusCode)
-                    return Results.Json(new { error = "Civitai 返回 " + (int)resp.StatusCode, hash }, statusCode: 502);
+                // 有些模型只在 civitai.red 上可见，两个域名都试
+                string host = "civitai.com";
+                string? payload = null;
+                var lastStatus = 0;
+                foreach (var h in new[] { "civitai.com", "civitai.red" })
+                {
+                    using var resp = await http.GetAsync("https://" + h + "/api/v1/model-versions/by-hash/" + hash);
+                    lastStatus = (int)resp.StatusCode;
+                    if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) continue;
+                    if (!resp.IsSuccessStatusCode) continue;
+                    payload = await resp.Content.ReadAsStringAsync();
+                    host = h;
+                    break;
+                }
+                if (payload is null)
+                {
+                    if (lastStatus == 404) return Results.Json(new { found = false, hash });
+                    return Results.Json(new { error = "Civitai 返回 " + lastStatus, hash }, statusCode: 502);
+                }
 
-                var doc = JsonNode.Parse(await resp.Content.ReadAsStringAsync());
+                var doc = JsonNode.Parse(payload);
                 var versionId = doc?["id"]?.GetValue<long>() ?? 0;
                 var modelId = doc?["modelId"]?.GetValue<long>() ?? 0;
                 if (modelId == 0) return Results.Json(new { found = false, hash });
 
-                var url = "https://civitai.com/models/" + modelId + "?modelVersionId=" + versionId;
+                var url = "https://" + host + "/models/" + modelId + "?modelVersionId=" + versionId;
                 var title = doc?["model"]?["name"]?.GetValue<string>() ?? "";
-                return Results.Json(new { found = true, hash, modelId, versionId, url, title });
+                return Results.Json(new { found = true, hash, modelId, versionId, url, title, host });
             }
             catch (TaskCanceledException)
             {

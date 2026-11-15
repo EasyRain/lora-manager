@@ -799,7 +799,7 @@ function ghostHTML(file, hiddenView) {
   const hint = hiddenView ? t('已隐藏，右键或点 ↩ 恢复。') : t('还没有小卡片，点 ＋ 新建（右键也有）');
   const inner = card ? kidsOf(card) : `<div class="child"><div class="mid"><div class="cb">${hint}</div></div></div>`;
   return `<div class="card ghost" data-path="${esc(file.rel)}" title="${esc(cardTip(cardByPath(file.rel), file.rel))}">
-    <div class="card-head">
+    <div class="card-head" draggable="true" data-ghost="${esc(file.rel)}">
       <span class="title">${esc(file.name)}</span>
       <span class="n">${hiddenView ? t('隐藏') : t('空')}</span>
       ${civMarkHTML('f:' + file.rel, civState(file.rel, cardByPath(file.rel)).civitai)}
@@ -1005,6 +1005,25 @@ async function undoMove() {
 }
 
 /* 把一张卡片（连同它的 LoRA 文件）移动到某个目录 */
+/* 给还没建卡的文件补一张空卡（拖动排序时需要它有个 order） */
+function ensureCardForPath(rel) {
+  const exist = cardByPath(rel);
+  if (exist) return exist;
+  const card = {
+    id: uid('g_'),
+    path: rel,
+    dir: '',
+    title: stemOf(rel),
+    w: '',
+    children: [],
+    updated: Date.now(),
+  };
+  adoptFileState(card.path, card);
+  lib.cards.push(card);
+  card.order = nextOrder(curDir);
+  return card;
+}
+
 async function moveCardTo(cardId, dir) {
   const c = lib.cards.find((x) => x.id === cardId);
   if (!c) return;
@@ -1036,7 +1055,7 @@ function bindMoveDrop() {
   const wire = (box, pick) => {
     if (!box) return;
     box.addEventListener('dragover', (e) => {
-      if (!dragKey || dragKey.type !== 'card') return;
+      if (!dragKey || (dragKey.type !== 'card' && dragKey.type !== 'ghost')) return;
       const el = pick(e.target);
       if (!el) return;
       e.preventDefault();
@@ -1047,16 +1066,27 @@ function bindMoveDrop() {
     box.addEventListener('dragleave', (e) => {
       if (!box.contains(e.relatedTarget)) mark(null);
     });
-    box.addEventListener('drop', (e) => {
-      if (!dragKey || dragKey.type !== 'card') return;
+    box.addEventListener('drop', async (e) => {
+      if (!dragKey || (dragKey.type !== 'card' && dragKey.type !== 'ghost')) return;
       const el = pick(e.target);
       if (!el) return;
       e.preventDefault();
       e.stopPropagation();
       mark(null);
-      const id = dragKey.id;
+      const key = dragKey;
       dragKey = null;
-      moveCardTo(id, el.dataset.dir ?? '');
+      const dir = el.dataset.dir ?? '';
+      if (key.type === 'ghost') {
+        try {
+          const d = await moveFile(key.rel, dir);
+          lastMove = { from: d.from, to: d.to };
+          await loadTree();
+          render();
+          toast(t('已移动到 ') + dirLabel(dir));
+        } catch (err) { toast(err.message, true); }
+      } else {
+        moveCardTo(key.id, dir);
+      }
     });
   };
   wire($('#folders'), (t) => t.closest('.tile[data-dir]'));
@@ -1237,6 +1267,18 @@ function bindDrag() {
       try { e.dataTransfer.setData('text/plain', child.dataset.child); } catch (_) {}
       return;
     }
+    const ghostHead = e.target.closest('.card-head[data-ghost]');
+    if (ghostHead) {                              // 还没建卡的 LoRA：也能拖
+      if (e.target.closest('.acts')) { e.preventDefault(); return; }
+      const ghost = ghostHead.closest('.card.ghost');
+      dragKey = { type: 'ghost', rel: ghost.dataset.ghost };
+      dragH = ghost.getBoundingClientRect().height;
+      ghost.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', ghost.dataset.ghost); } catch (_) {}
+      return;
+    }
+
     const head = e.target.closest('.card-head[data-whole]');
     if (!head) return;
     const card = head.closest('[data-card]');
@@ -1280,7 +1322,7 @@ function bindDrag() {
 
     const target = e.target.closest('[data-card]');
     if (!target) return;
-    if (target.dataset.card === dragKey.id) return;
+    if (dragKey.type === 'card' && target.dataset.card === dragKey.id) return;
 
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
@@ -1290,8 +1332,8 @@ function bindDrag() {
 
     // 放这里会不会真的改变顺序？不会就不高亮
     const ids = orderedCards(curDir).map((c) => c.id);
-    const fromIdx = ids.indexOf(dragKey.id);
-    const restIds = ids.filter((x) => x !== dragKey.id);
+    const fromIdx = dragKey.type === 'card' ? ids.indexOf(dragKey.id) : -1;
+    const restIds = dragKey.type === 'card' ? ids.filter((x) => x !== dragKey.id) : ids;
     const noop = (restIds.indexOf(target.dataset.card) + (before ? 0 : 1)) === fromIdx;
 
     document.querySelectorAll('.drop-above,.drop-below')
@@ -1313,7 +1355,16 @@ function bindDrag() {
     const before = e.clientY < r.top + r.height / 2;
     const key = dragKey;
 
-    if (key.type === 'card') {
+    if (key.type === 'ghost') {
+      const card = ensureCardForPath(key.rel);
+      const list = orderedCards(curDir).filter((c) => c.id !== card.id);
+      const idx = list.findIndex((c) => c.id === target.dataset.card);
+      if (idx >= 0) {
+        list.splice(idx + (before ? 0 : 1), 0, card);
+        list.forEach((c, i) => { c.order = i + 1; });
+        touch();
+      }
+    } else if (key.type === 'card') {
       const moved = lib.cards.find((c) => c.id === key.id);
       const list = orderedCards(curDir).filter((c) => c.id !== key.id);
       const idx = list.findIndex((c) => c.id === target.dataset.card);
