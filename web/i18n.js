@@ -254,6 +254,8 @@ const I18N = {
     '切换至 civitai.com 域名': 'Switch to civitai.com',
     '已切到 civitai.red': 'Switched to civitai.red',
     '已切到 civitai.com': 'Switched to civitai.com',
+    '以后新匹配的用 civitai.red（已有的不会自动改）': 'New matches will use civitai.red (existing ones unchanged)',
+    '以后新匹配的用 civitai.com（已有的不会自动改）': 'New matches will use civitai.com (existing ones unchanged)',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

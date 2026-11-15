@@ -2375,10 +2375,11 @@ function bind() {
       { label: t('重新匹配全部 Civitai（清空缓存）'), run: () => rematchEverything() },
       {
         label: t('匹配链接优先用 civitai.red') + (preferRed() ? '  ✓' : ''),
-        run: async () => {
+        run: () => {
           setPreferRed(!preferRed());
-          toast(preferRed() ? t('以后匹配都用 civitai.red') : t('以后匹配都用 civitai.com'));
-          await rematchEverything();
+          toast(preferRed()
+            ? t('以后新匹配的用 civitai.red（已有的不会自动改）')
+            : t('以后新匹配的用 civitai.com（已有的不会自动改）'));
         },
       },
       { label: t('在资源管理器中打开'), run: () => revealPath(curDir) },
