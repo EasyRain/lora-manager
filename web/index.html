@@ -41,20 +41,24 @@
 </main>
 
 <div class="selbar" id="selbar" hidden>
-  <span class="selcount"><span id="sel-label"></span> <b id="seln">0</b></span>
-  <span class="selorder" id="selorder"></span>
-  <label class="sep"><span id="sep-label"></span>
-    <select id="sep">
-      <option value=", ">, </option>
-      <option value=",">,</option>
-      <option value="\n">\n</option>
-      <option value=" ">␣</option>
-    </select>
-  </label>
-  <label class="chk"><input type="checkbox" id="dedup"> <span id="dedup-label"></span></label>
-  <button class="btn primary" id="btn-merge" data-i18n="合并复制">合并复制</button>
-  <button class="btn ghost" id="btn-move" data-i18n="移动到…">移动到…</button>
-  <button class="btn ghost" id="btn-clearsel" data-i18n="清除">清除</button>
+  <div class="selrow">
+    <span class="selcount"><span id="sel-label"></span> <b id="seln">0</b></span>
+    <span class="selorder" id="selorder"></span>
+    <label class="sep"><span id="sep-label"></span>
+      <select id="sep">
+        <option value=", ">, </option>
+        <option value=",">,</option>
+        <option value="\n">\n</option>
+        <option value=" ">␣</option>
+      </select>
+    </label>
+    <label class="chk"><input type="checkbox" id="dedup"> <span id="dedup-label"></span></label>
+  </div>
+  <div class="selrow selrow-btns">
+    <button class="btn primary" id="btn-merge" data-i18n="合并复制">合并复制</button>
+    <button class="btn ghost" id="btn-move" data-i18n="移动到…">移动到…</button>
+    <button class="btn ghost" id="btn-clearsel" data-i18n="清除">清除</button>
+  </div>
 </div>
 
 <!-- 小卡片编辑 -->

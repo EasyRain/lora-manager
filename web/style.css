@@ -217,13 +217,14 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ---------- 选择条 ---------- */
 .selbar{
   position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:20;
-  display:flex; align-items:center; gap:12px; padding:9px 14px;
+  display:flex; flex-direction:column; gap:8px; padding:9px 14px;
   background:var(--selbar-bg); border:1px solid var(--selbar-bd); border-radius:12px;
   box-shadow:0 8px 30px var(--shadow);
   max-width:calc(100vw - 32px); box-sizing:border-box;
-  /* 窄窗口时换行，而不是让按钮顶出边框 */
-  flex-wrap:wrap; row-gap:8px;
 }
+/* 固定两排：上面状态，下面按钮 */
+.selbar .selrow{display:flex; align-items:center; gap:12px; min-width:0}
+.selbar .selrow-btns{gap:8px}
 .selcount b{color:var(--selb); font-size:15px}
 /* 名称过长时只截断它自己，不要把按钮挤到第二行 */
 .selbar .selcount,.selbar label,.selbar button{flex:0 0 auto}
