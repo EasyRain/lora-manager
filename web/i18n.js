@@ -250,6 +250,10 @@ const I18N = {
     ' 条失效图片引用': ' broken image reference(s)',
     '图片已丢失': 'Image missing',
     '双击用默认程序打开': 'Double-click to open',
+    '切换至 civitai.red 域名': 'Switch to civitai.red',
+    '切换至 civitai.com 域名': 'Switch to civitai.com',
+    '已切到 civitai.red': 'Switched to civitai.red',
+    '已切到 civitai.com': 'Switched to civitai.com',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

@@ -386,6 +386,20 @@ function civMarkHTML(key, state) {
 }
 
 /* 按哈希缓存的 Civitai 结果：{ "<sha256>": { url, title } } ；查不到存 { url: "" } */
+/* 手动切换某条 LoRA 的 Civitai 域名（com ↔ red），切换后「在 Civitai 打开」就用它 */
+function toggleCivHost(rel, card) {
+  const st = civState(rel, card);
+  const url = st && st.civitai;
+  if (!url) return;
+  const next = otherCivUrl(url);
+  if (!next) return;
+  setCivState(rel, card, { civitai: next }, true);
+  if (st.h) cachePut(st.h, next, st.ctitle || '', next.includes('//civitai.red/') ? 'civitai.red' : 'civitai.com');
+  touch();
+  render();
+  toast(next.includes('//civitai.red/') ? t('已切到 civitai.red') : t('已切到 civitai.com'));
+}
+
 /* 匹配结果的域名偏好：civitai.com / civitai.red */
 function preferRed() {
   try { return localStorage.getItem('civPreferRed') === '1'; } catch { return false; }
@@ -2275,7 +2289,12 @@ function bind() {
         { label: t('隐藏这个 LoRA'), show: !!c.path, run: () => hidePath(c.path) },
         { label: t('在资源管理器中显示'), show: !!c.path, run: () => revealPath(c.path) },
         { label: t('在 Civitai 打开'), show: !!(c.path && civState(c.path, c).civitai), run: () => openCivitai(c.path, c) },
-        { label: t('在 civitai.red 打开'), show: !!(c.path && civState(c.path, c).civitai), run: () => { const u = otherCivUrl(civState(c.path, c).civitai); if (u) openUrl(u); } },
+        {
+          label: (civState(c.path, c).civitai || '').includes('//civitai.red/')
+            ? t('切换至 civitai.com 域名') : t('切换至 civitai.red 域名'),
+          show: !!(c.path && civState(c.path, c).civitai),
+          run: () => toggleCivHost(c.path, c),
+        },
         { label: t('刷新 Civitai 信息'), show: !!c.path, run: () => rematchOne(c, null) },
         { label: t('删除 LoRA 文件…'), danger: true, show: !!c.path, run: () => deleteLoraFile(c.path) },
         { sep: true, show: !!c.path },
@@ -2297,7 +2316,12 @@ function bind() {
         { label: t('隐藏这个 LoRA'), show: !isHidden(rel), run: () => hidePath(rel) },
         { label: t('在资源管理器中显示'), run: () => revealPath(rel) },
         { label: t('在 Civitai 打开'), show: !!civState(rel, cardByPath(rel)).civitai, run: () => openCivitai(rel, cardByPath(rel)) },
-        { label: t('在 civitai.red 打开'), show: !!civState(rel, cardByPath(rel)).civitai, run: () => { const u = otherCivUrl(civState(rel, cardByPath(rel)).civitai); if (u) openUrl(u); } },
+        {
+          label: (civState(rel, cardByPath(rel)).civitai || '').includes('//civitai.red/')
+            ? t('切换至 civitai.com 域名') : t('切换至 civitai.red 域名'),
+          show: !!civState(rel, cardByPath(rel)).civitai,
+          run: () => toggleCivHost(rel, cardByPath(rel)),
+        },
         { label: t('刷新 Civitai 信息'), run: () => rematchOne(null, rel) },
         { sep: true },
         { label: t('删除 LoRA 文件…'), danger: true, run: () => deleteLoraFile(rel) },
