@@ -244,6 +244,18 @@ public static class Api
     const ushort FOF_NOERRORUI = 0x0400;
     const ushort FOF_WANTNUKEWARNING = 0x4000;   // 放不进回收站时先警告再彻底删除
 
+    /// <summary>模型页是否可访问（.com 上被隐藏的模型会 404/403/451）。</summary>
+    static async Task<bool> PageAlive(HttpClient http, string url)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+            return resp.IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
     // ---- 用系统默认程序打开文件/文件夹 ----
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     static extern IntPtr ShellExecuteW(IntPtr hwnd, string? lpOperation, string lpFile,
@@ -860,8 +872,17 @@ public static class Api
                 var modelId = doc?["modelId"]?.GetValue<long>() ?? 0;
                 if (modelId == 0) return Results.Json(new { found = false, hash });
 
-                var url = "https://" + host + "/models/" + modelId + "?modelVersionId=" + versionId;
+                var suffix = "/models/" + modelId + "?modelVersionId=" + versionId;
+                var url = "https://" + host + suffix;
                 var title = doc?["model"]?["name"]?.GetValue<string>() ?? "";
+
+                // 有些模型 API 在 .com 也能查到，但网页是隐藏的 —— 探一下页面再决定用哪个域名
+                if (host == "civitai.com" && !await PageAlive(http, url))
+                {
+                    var redUrl = "https://civitai.red" + suffix;
+                    if (await PageAlive(http, redUrl)) { url = redUrl; host = "civitai.red"; }
+                }
+
                 return Results.Json(new { found = true, hash, modelId, versionId, url, title, host });
             }
             catch (TaskCanceledException)

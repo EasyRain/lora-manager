@@ -389,9 +389,15 @@ function civMarkHTML(key, state) {
 function cacheGet(hash) {
   return hash ? lib.civcache[hash] : undefined;
 }
-function cachePut(hash, url, title) {
+function cachePut(hash, url, title, host) {
   if (!hash) return;
-  lib.civcache[hash] = { url: url || '', title: title || '', at: Date.now() };
+  lib.civcache[hash] = { url: url || '', title: title || '', host: host || '', at: Date.now() };
+}
+
+/* 旧版本缓存里没有 host 字段，可能是 .com 的隐藏页，当没缓存处理 */
+function cacheGetFresh(hash) {
+  const c = cacheGet(hash);
+  return c && c.host !== undefined && c.host !== null && c.host !== '' ? c : undefined;
 }
 
 /* ---------------- Civitai 状态（按文件记录，和有没有卡片无关） ---------------- */
@@ -453,6 +459,20 @@ function updateMatchButton() {
     : t('全部匹配过了');
 }
 
+/* 清掉已有匹配结果，全部重新查（用于域名/信息变更后刷新） */
+async function rematchEverything() {
+  if (matchRun) return toast('正在匹配中，请稍候', true);
+  lib.civcache = {};
+  lib.cards.forEach((c) => { delete c.civitai; delete c.ctitle; });
+  Object.keys(lib.files || {}).forEach((k) => {
+    if (lib.files[k]) { delete lib.files[k].civitai; delete lib.files[k].ctitle; }
+  });
+  touch();
+  render();
+  toast(t('已清空匹配结果，开始重新匹配'));
+  return matchAll();
+}
+
 async function matchAll() {
   if (matchRun) { matchRun.cancelled = true; return; }   // 再点一次 = 停
 
@@ -486,7 +506,7 @@ async function matchAll() {
       setMatchLabel(t('匹配中 ') + (run.done + 1) + '/' + run.total);
 
       // 本地缓存里有结果就直接用，不联网
-      const cached = cacheGet(item.st.h);
+      const cached = cacheGetFresh(item.st.h);
       if (cached && (item.st.civitai === undefined || cached.title)) {
         setCivState(item.rel, cardByPath(item.rel), { civitai: cached.url || '', ctitle: cached.title || '' }, true);
         cached.url ? run.ok++ : run.none++;
@@ -499,7 +519,7 @@ async function matchAll() {
         const d = await postJson('/api/civitai/lookup', { hash: item.st.h, path: item.rel });
         const url = d.found && d.url ? d.url : '';
         const h = d.hash || item.st.h;
-        cachePut(h, url, d.title);
+        cachePut(h, url, d.title, d.host);
         setCivState(item.rel, cardByPath(item.rel),
           { civitai: url, ctitle: d.title || '', h }, true);
         url ? run.ok++ : run.none++;
@@ -532,7 +552,7 @@ async function rematchOne(card, rel, opts) {
   toast(t('正在查 Civitai…'));
   try {
     const d = await postJson('/api/civitai/lookup', { path });
-    cachePut(d.hash, d.found && d.url ? d.url : '', (d.found && d.title) || '');
+    cachePut(d.hash, d.found && d.url ? d.url : '', (d.found && d.title) || '', d.host);
     setCivState(path, target, {
       civitai: d.found && d.url ? d.url : '',
       ctitle: (d.found && d.title) || '',
@@ -2301,6 +2321,7 @@ function bind() {
       { label: t('撤销移动'), show: !!lastMove, run: () => undoMove() },
       { sep: true, show: !!lastMove },
       { label: t('刷新这个目录'), run: async () => { await loadTree(); render(); toast(t('已刷新')); } },
+      { label: t('重新匹配全部 Civitai（清空缓存）'), run: () => rematchEverything() },
       { label: t('在资源管理器中打开'), run: () => revealPath(curDir) },
     ]);
   });
