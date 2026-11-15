@@ -1702,6 +1702,11 @@ function withFlip(box, mutate) {
   }
 }
 
+function setEdHint(on) {
+  const el = $('#ed-drop-hint');
+  if (el) el.hidden = !on;
+}
+
 function indexFromX(box, clientX) {
   const cells = [...box.querySelectorAll('.imgcell')];
   for (let i = 0; i < cells.length; i++) {
@@ -1864,6 +1869,7 @@ function updateSaveState() {
 }
 
 function closeChild(saved) {
+  setEdHint(false);
   if (!saved) {
     // 没保存就关窗：把本次新复制进来的图删掉，原图不动
     if (edPending.size) removeImageFiles([...edPending], false);   // 未保存的新图：直接删
@@ -2444,7 +2450,8 @@ function bind() {
     if (anyModalOpen()) {                       // 只给"可放下"的光标，不显示目录提示
       if ($('#modal').hidden) return;
       const box = $('#ed-imgs');
-      if (box && !box.hidden) {
+      const hasImgs = box && !box.hidden && box.querySelector('.imgcell, .img-broken');
+      if (hasImgs) {
         const r = box.getBoundingClientRect();
         const inside = e.clientX >= r.left - 6 && e.clientX <= r.right + 6 &&
                        e.clientY >= r.top - 12 && e.clientY <= r.bottom + 12;
@@ -2452,6 +2459,7 @@ function bind() {
           const el = document.elementFromPoint(e.clientX, e.clientY);
           const broken = el && el.closest ? el.closest('.img-broken') : null;
           document.querySelectorAll('#ed-imgs .drop-target').forEach((x) => x.classList.remove('drop-target'));
+          setEdHint(false);                     // 精确落在图片区：不用整框提示
           if (broken && broken.dataset.idx !== '') {
             fileReplaceAt = Number(broken.dataset.idx);   // 拖到占位图上 = 直接替换它
             fileDropAt = null;
@@ -2466,7 +2474,9 @@ function bind() {
         }
       }
       hideDropSlot();
+      document.querySelectorAll('#ed-imgs .drop-target').forEach((x) => x.classList.remove('drop-target'));
       fileDropAt = null; fileReplaceAt = null;
+      setEdHint(true);                          // 没拖到图片区（或还没有图片）→ 整框虚线
       return;
     }
     $('#dropdir').textContent = dirLabel(dropTargetDir(e));
@@ -2478,6 +2488,7 @@ function bind() {
     if (anyModalOpen() && !e.relatedTarget) {
       $('#modal').classList.remove('dropping');
       hideDropSlot();
+      setEdHint(false);
       document.querySelectorAll('#ed-imgs .drop-target').forEach((x) => x.classList.remove('drop-target'));
       fileDropAt = null; fileReplaceAt = null;
     }
@@ -2502,6 +2513,7 @@ function bind() {
     if (anyModalOpen()) {
       const at = fileDropAt, rep = fileReplaceAt;
       hideDropSlot();
+      setEdHint(false);
       document.querySelectorAll('#ed-imgs .drop-target').forEach((x) => x.classList.remove('drop-target'));
       fileDropAt = null; fileReplaceAt = null;
       const img = files.find((f) => (f.type || '').startsWith('image/'));

@@ -235,6 +235,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 /* ---------- 编辑器 ---------- */
 .modal{position:fixed; inset:0; background:var(--overlay); z-index:50; display:flex; align-items:center; justify-content:center}
 .sheet{
+  position:relative;
   width:min(760px,94vw); height:min(720px,90vh); background:var(--panel);
   border:1px solid var(--line); border-radius:14px; display:flex; flex-direction:column;
   box-shadow:0 20px 60px var(--shadow); overflow:hidden;
@@ -531,4 +532,17 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   box-sizing:border-box; pointer-events:none;
   border:2px dashed var(--accent); border-radius:8px;
   background:rgba(76,154,255,.12);
+}
+
+/* 拖图进编辑弹窗：整框虚线提示（没图片或没拖到图片区时显示） */
+.ed-drop-hint{
+  position:absolute; inset:8px; z-index:20; display:flex;
+  align-items:center; justify-content:center; pointer-events:none;
+  border:2px dashed var(--accent); border-radius:12px;
+  background:rgba(76,154,255,.10);
+}
+.ed-drop-hint[hidden]{display:none}
+.ed-drop-hint span{
+  padding:6px 14px; border-radius:999px; font-size:13px; font-weight:600;
+  color:#fff; background:var(--accent2); box-shadow:0 4px 14px rgba(0,0,0,.18);
 }
