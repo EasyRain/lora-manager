@@ -386,6 +386,27 @@ function civMarkHTML(key, state) {
 }
 
 /* 按哈希缓存的 Civitai 结果：{ "<sha256>": { url, title } } ；查不到存 { url: "" } */
+/* 匹配结果的域名偏好：civitai.com / civitai.red */
+function preferRed() {
+  try { return localStorage.getItem('civPreferRed') === '1'; } catch { return false; }
+}
+function setPreferRed(on) {
+  try { localStorage.setItem('civPreferRed', on ? '1' : '0'); } catch { }
+}
+/* 同一个模型的另一个域名链接 */
+function otherCivUrl(url) {
+  if (!url) return '';
+  if (url.includes('//civitai.com/')) return url.replace('//civitai.com/', '//civitai.red/');
+  if (url.includes('//civitai.red/')) return url.replace('//civitai.red/', '//civitai.com/');
+  return '';
+}
+function pickCivUrl(d) {
+  if (!d || !d.found) return '';
+  const com = d.urlCom || (d.url || '');
+  const red = d.urlRed || otherCivUrl(com);
+  return preferRed() && red ? red : com;
+}
+
 function cacheGet(hash) {
   return hash ? lib.civcache[hash] : undefined;
 }
@@ -517,7 +538,7 @@ async function matchAll() {
 
       try {
         const d = await postJson('/api/civitai/lookup', { hash: item.st.h, path: item.rel });
-        const url = d.found && d.url ? d.url : '';
+        const url = pickCivUrl(d);
         const h = d.hash || item.st.h;
         cachePut(h, url, d.title, d.host);
         setCivState(item.rel, cardByPath(item.rel),
@@ -552,15 +573,16 @@ async function rematchOne(card, rel, opts) {
   toast(t('正在查 Civitai…'));
   try {
     const d = await postJson('/api/civitai/lookup', { path });
-    cachePut(d.hash, d.found && d.url ? d.url : '', (d.found && d.title) || '', d.host);
+    const picked = pickCivUrl(d);
+    cachePut(d.hash, picked, (d.found && d.title) || '', d.host);
     setCivState(path, target, {
-      civitai: d.found && d.url ? d.url : '',
+      civitai: picked,
       ctitle: (d.found && d.title) || '',
       ...(d.hash ? { h: d.hash } : {}),
     });
     render();
-    if (d.found && d.url) {
-      if (opts && opts.open) { openUrl(d.url); toast(t('已打开模型页')); }
+    if (picked) {
+      if (opts && opts.open) { openUrl(picked); toast(t('已打开模型页')); }
       else toast(t('已匹配'));
     } else {
       toast(t('无匹配：Civitai 上没有这个模型'), true);
@@ -2253,6 +2275,7 @@ function bind() {
         { label: t('隐藏这个 LoRA'), show: !!c.path, run: () => hidePath(c.path) },
         { label: t('在资源管理器中显示'), show: !!c.path, run: () => revealPath(c.path) },
         { label: t('在 Civitai 打开'), show: !!(c.path && civState(c.path, c).civitai), run: () => openCivitai(c.path, c) },
+        { label: t('在 civitai.red 打开'), show: !!(c.path && civState(c.path, c).civitai), run: () => { const u = otherCivUrl(civState(c.path, c).civitai); if (u) openUrl(u); } },
         { label: t('刷新 Civitai 信息'), show: !!c.path, run: () => rematchOne(c, null) },
         { label: t('删除 LoRA 文件…'), danger: true, show: !!c.path, run: () => deleteLoraFile(c.path) },
         { sep: true, show: !!c.path },
@@ -2274,6 +2297,7 @@ function bind() {
         { label: t('隐藏这个 LoRA'), show: !isHidden(rel), run: () => hidePath(rel) },
         { label: t('在资源管理器中显示'), run: () => revealPath(rel) },
         { label: t('在 Civitai 打开'), show: !!civState(rel, cardByPath(rel)).civitai, run: () => openCivitai(rel, cardByPath(rel)) },
+        { label: t('在 civitai.red 打开'), show: !!civState(rel, cardByPath(rel)).civitai, run: () => { const u = otherCivUrl(civState(rel, cardByPath(rel)).civitai); if (u) openUrl(u); } },
         { label: t('刷新 Civitai 信息'), run: () => rematchOne(null, rel) },
         { sep: true },
         { label: t('删除 LoRA 文件…'), danger: true, run: () => deleteLoraFile(rel) },
@@ -2322,6 +2346,14 @@ function bind() {
       { sep: true, show: !!lastMove },
       { label: t('刷新这个目录'), run: async () => { await loadTree(); render(); toast(t('已刷新')); } },
       { label: t('重新匹配全部 Civitai（清空缓存）'), run: () => rematchEverything() },
+      {
+        label: (preferRed() ? '✓ ' : '') + t('匹配链接优先用 civitai.red'),
+        run: async () => {
+          setPreferRed(!preferRed());
+          toast(preferRed() ? t('以后匹配都用 civitai.red') : t('以后匹配都用 civitai.com'));
+          await rematchEverything();
+        },
+      },
       { label: t('在资源管理器中打开'), run: () => revealPath(curDir) },
     ]);
   });
@@ -2480,7 +2512,24 @@ function bind() {
     });
   }
 
-  $('#btn-match').addEventListener('click', matchAll);
+  const matchBtn = $('#btn-match');
+  matchBtn.addEventListener('click', (e) => {
+    if (e.shiftKey) return rematchEverything();
+    matchAll();
+  });
+  const syncMatchHint = (e) => {
+    if (matchRun) return;                      // 匹配中不要干扰进度文案
+    setMatchLabel(e.shiftKey ? t('全部重新匹配') : t('匹配 Civitai'));
+  };
+  matchBtn.addEventListener('mouseenter', syncMatchHint);
+  matchBtn.addEventListener('mousemove', syncMatchHint);
+  matchBtn.addEventListener('mouseleave', () => { if (!matchRun) updateMatchButton(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Shift' && !matchRun) setMatchLabel(t('全部重新匹配'));
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift' && !matchRun) updateMatchButton();
+  });
 
   $('#btn-root').addEventListener('click', async () => {
     const cur = lib.root || tree.root;

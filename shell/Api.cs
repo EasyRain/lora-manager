@@ -883,7 +883,9 @@ public static class Api
                     if (await PageAlive(http, redUrl)) { url = redUrl; host = "civitai.red"; }
                 }
 
-                return Results.Json(new { found = true, hash, modelId, versionId, url, title, host });
+                var urlRed = "https://civitai.red" + suffix;
+                var urlCom = "https://civitai.com" + suffix;
+                return Results.Json(new { found = true, hash, modelId, versionId, url, title, host, urlCom, urlRed });
             }
             catch (TaskCanceledException)
             {
