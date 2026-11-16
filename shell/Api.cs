@@ -707,10 +707,23 @@ public static class Api
 
                 var parent = Path.GetDirectoryName(src)!;
                 var target = Path.Combine(parent, isDir ? name : name + Path.GetExtension(src));
-                if (File.Exists(target) || Directory.Exists(target))
+                // Windows 不区分大小写：只改大小写时 src 和 target 其实是同一个路径
+                var caseOnly = string.Equals(src, target, StringComparison.OrdinalIgnoreCase);
+                if (!caseOnly && (File.Exists(target) || Directory.Exists(target)))
                     return Results.Json(new { error = "同目录里已经有这个名字" }, statusCode: 409);
 
-                if (isDir) Directory.Move(src, target); else File.Move(src, target);
+                if (caseOnly && string.Equals(src, target, StringComparison.Ordinal))
+                    return Results.Json(new { ok = true, from = Rel(root, src), to = Rel(root, src) });  // 完全没变
+
+                if (caseOnly)
+                {
+                    // 同路径只改大小写：先挪到临时名，再挪到目标名
+                    var tmp = target + ".__renaming__";
+                    if (isDir) { Directory.Move(src, tmp); Directory.Move(tmp, target); }
+                    else { File.Move(src, tmp); File.Move(tmp, target); }
+                }
+                else if (isDir) Directory.Move(src, target);
+                else File.Move(src, target);
                 return Results.Json(new { ok = true, from = Rel(root, src), to = Rel(root, target) });
             }
             catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }

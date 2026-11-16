@@ -2334,9 +2334,9 @@ function bind() {
   });
 
   $('#folders').addEventListener('contextmenu', (e) => {
-    const t = e.target.closest('.tile');
-    if (!t) return;
-    const rel = t.dataset.dir;
+    const tileEl = e.target.closest('.tile');   // 注意别用 t：那是翻译函数
+    if (!tileEl) { sidebarBlankMenu(e); return; }
+    const rel = tileEl.dataset.dir;
     showMenu(e, [
       { label: t('打开'), run: () => goDir(rel) },
       { sep: true },
@@ -2349,9 +2349,18 @@ function bind() {
     ]);
   });
 
+  const sidebarBlankMenu = (e) => showMenu(e, [
+    { label: t('新建文件夹…'), run: () => newFolder() },
+    { label: t('刷新目录树'), run: async () => { await loadTree(); render(); toast(t('已刷新')); } },
+    { label: t('回到根目录'), run: () => goDir('') },
+    { sep: true },
+    { label: t('重新匹配全部 Civitai'), run: () => rematchEverything() },
+    { label: t('在资源管理器中打开'), run: () => revealPath(curDir) },
+  ]);
+
   $('#cats').addEventListener('contextmenu', (e) => {
     const r = e.target.closest('[data-dir]');
-    if (!r || r.dataset.dir === '' || r.dataset.dir === HIDDEN) return;
+    if (!r || r.dataset.dir === '' || r.dataset.dir === HIDDEN) { sidebarBlankMenu(e); return; }
     const rel = r.dataset.dir;
     showMenu(e, [
       { label: t('重命名文件夹…'), run: () => renamePath(rel) },
@@ -2830,6 +2839,16 @@ function bind() {
       if (sel.length) { sel = []; renderMain(); renderSel(); return; }
       if ($('#search').value) { $('#search').value = ''; renderMain(); return; }
     }
+    // 大卡片编辑里的单行输入框：直接回车就保存（文本域仍留给换行）
+    if (e.key === 'Enter' && !e.shiftKey && !e.defaultPrevented && !$('#modal-card').hidden) {
+      const el = e.target;
+      if (el && el.tagName === 'INPUT' && $('#modal-card').contains(el)) {
+        e.preventDefault();
+        saveCard();
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       if (!$('#modal').hidden) { e.preventDefault(); saveChild(); }
       else if (!$('#modal-card').hidden) { e.preventDefault(); saveCard(); }
