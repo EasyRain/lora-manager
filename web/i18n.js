@@ -139,7 +139,7 @@ const I18N = {
     '移动': 'Move',
     'LoRA 文件会真的被挪动；只挪卡片不影响文件时，文件保持原位。':
       'LoRA files are moved on disk; pure cards just change location.',
-    '回车保存 · Shift+回车换行 · Esc 关闭': 'Enter to save · Shift+Enter newline · Esc to close',
+    '回车换行 · Shift+回车保存 · Esc 关闭': 'Enter newline · Shift+Enter to save · Esc to close',
     '双击卡片标题看整张，双击某一条只看那条':
       'Double-click a card title for all entries, an entry for just that one',
     '复制原文': 'Copy raw',

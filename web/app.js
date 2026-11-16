@@ -2797,9 +2797,11 @@ function bind() {
     if (item) { e.preventDefault(); uploadImages([item.getAsFile()]); }
   });
   $('#ed-body').addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
-    e.preventDefault();
-    saveChild();                       // 回车 = 保存；Shift+回车 = 换行
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (e.shiftKey) {                  // 回车 = 换行（当笔记写）；Shift+回车 = 保存
+      e.preventDefault();
+      saveChild();
+    }
   });
   $('#ed-title').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#ed-body').focus(); }
