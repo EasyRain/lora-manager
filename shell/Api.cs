@@ -677,15 +677,32 @@ public static class Api
                 var src = SafeFull(root, from);
                 var dstDir = SafeFull(root, toDir);
                 if (src is null || dstDir is null) return Results.Json(new { error = "越界路径" }, statusCode: 400);
-                if (!File.Exists(src)) return Results.Json(new { error = "源文件不存在" }, statusCode: 404);
+
+                var isDir = Directory.Exists(src);
+                if (!isDir && !File.Exists(src)) return Results.Json(new { error = "源文件不存在" }, statusCode: 404);
 
                 Directory.CreateDirectory(dstDir);
                 var dst = Path.Combine(dstDir, Path.GetFileName(src));
-                if (File.Exists(dst))
-                    return Results.Json(new { error = "目标里已经有同名文件" }, statusCode: 409);
 
-                File.Move(src, dst);
-                return Results.Json(new { ok = true, from = Rel(root, src), to = Rel(root, dst) });
+                if (isDir)
+                {
+                    // 不能把文件夹移到它自己或它的子目录里
+                    var srcFull = Path.GetFullPath(src).TrimEnd(Path.DirectorySeparatorChar);
+                    var dstFull = Path.GetFullPath(dstDir).TrimEnd(Path.DirectorySeparatorChar);
+                    if (dstFull.Equals(srcFull, StringComparison.OrdinalIgnoreCase) ||
+                        dstFull.StartsWith(srcFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                        return Results.Json(new { error = "不能移动到它自己里面" }, statusCode: 400);
+                    if (Directory.Exists(dst))
+                        return Results.Json(new { error = "目标里已经有同名文件夹" }, statusCode: 409);
+                    Directory.Move(src, dst);
+                }
+                else
+                {
+                    if (File.Exists(dst))
+                        return Results.Json(new { error = "目标里已经有同名文件" }, statusCode: 409);
+                    File.Move(src, dst);
+                }
+                return Results.Json(new { ok = true, from = Rel(root, src), to = Rel(root, dst), dir = isDir });
             }
             catch (Exception e) { return Results.Json(new { error = e.Message }, statusCode: 500); }
         });

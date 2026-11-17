@@ -958,7 +958,7 @@ function renderMain() {
 
   const subs = dirsIn(curDir);
   $('#folders').innerHTML = subs
-    .map((d) => `<div class="tile" data-dir="${esc(d.rel)}">
+    .map((d) => `<div class="tile" data-dir="${esc(d.rel)}" draggable="true">
         <div class="tname">📁 ${esc(d.name)}</div>
         <div class="tmeta">${countsText(d.rel)}</div>
       </div>`)
@@ -1123,7 +1123,7 @@ function bindMoveDrop() {
   const wire = (box, pick) => {
     if (!box) return;
     box.addEventListener('dragover', (e) => {
-      if (!dragKey || (dragKey.type !== 'card' && dragKey.type !== 'ghost')) return;
+      if (!dragKey || (dragKey.type !== 'card' && dragKey.type !== 'ghost' && dragKey.type !== 'dir')) return;
       const el = pick(e.target);
       if (!el) return;
       e.preventDefault();
@@ -1135,7 +1135,7 @@ function bindMoveDrop() {
       if (!box.contains(e.relatedTarget)) mark(null);
     });
     box.addEventListener('drop', async (e) => {
-      if (!dragKey || (dragKey.type !== 'card' && dragKey.type !== 'ghost')) return;
+      if (!dragKey || (dragKey.type !== 'card' && dragKey.type !== 'ghost' && dragKey.type !== 'dir')) return;
       const el = pick(e.target);
       if (!el) return;
       e.preventDefault();
@@ -1149,6 +1149,16 @@ function bindMoveDrop() {
           const d = await moveFile(key.rel, dir);
           lastMove = { from: d.from, to: d.to };
           await loadTree();
+          render();
+          toast(t('已移动到 ') + dirLabel(dir));
+        } catch (err) { toast(err.message, true); }
+      } else if (key.type === 'dir') {
+        try {
+          await postJson('/api/move', { from: key.rel, to: dir });
+          lastMove = null;
+          if (curDir === key.rel) curDir = dir;
+          await loadTree();
+          touch();
           render();
           toast(t('已移动到 ') + dirLabel(dir));
         } catch (err) { toast(err.message, true); }
@@ -2239,10 +2249,38 @@ function openMove() {
   $('#mv-head').innerHTML = t('把选中的 ') + '<b>' + ids.length + '</b>' + t('项移到');
   fillFolderSelect($('#mv-folder'), '');
   $('#modal-move').hidden = false;
+  delete $('#modal-move').dataset.dirRel;
   $('#modal-move').dataset.ids = ids.join(',');
 }
 
+/* 文件夹版：移动整个目录 */
+function openMoveDir(rel) {
+  $('#mv-head').innerHTML = t('把文件夹 ') + '<b>' + esc(nameOf(rel)) + '</b> ' + t('移到');
+  fillFolderSelect($('#mv-folder'), '');
+  $('#modal-move').hidden = false;
+  $('#modal-move').dataset.ids = '';
+  $('#modal-move').dataset.dirRel = rel;
+}
+
 async function doMove() {
+  const dirRel = $('#modal-move').dataset.dirRel;
+  if (dirRel) {                                   // 文件夹模式
+    const folder = $('#mv-folder').value;
+    $('#modal-move').hidden = true;
+    delete $('#modal-move').dataset.dirRel;
+    if (parentOf(dirRel) === folder) return;
+    try {
+      const d = await postJson('/api/move', { from: dirRel, to: folder });
+      lastMove = null;
+      if (curDir === dirRel) curDir = folder;
+      await loadTree();
+      touch();
+      render();
+      toast(t('已移动到 ') + dirLabel(folder));
+    } catch (e) { toast(e.message, true); }
+    return;
+  }
+
   const ids = ($('#modal-move').dataset.ids || '').split(',').filter(Boolean);
   const folder = $('#mv-folder').value;
   let ok = 0, fail = 0;
@@ -2385,6 +2423,7 @@ function bind() {
       { label: t('打开'), run: () => goDir(rel) },
       { sep: true },
       { label: t('重命名文件夹…'), run: () => renamePath(rel) },
+      { label: t('移动到…'), run: () => openMoveDir(rel) },
       { label: t('新建子文件夹…'), run: () => { curDir = rel; newFolder(); } },
       { label: t('导入 LoRA 到这里…'), run: () => importLora(rel) },
       { label: t('删除文件夹'), danger: true, run: () => deleteFolder(rel) },
@@ -2392,6 +2431,16 @@ function bind() {
       { label: t('在资源管理器中显示'), run: () => revealPath(rel) },
     ]);
   });
+
+  $('#folders').addEventListener('dragstart', (e) => {
+    const tile = e.target.closest('.tile[data-dir]');
+    if (!tile) return;
+    dragKey = { type: 'dir', rel: tile.dataset.dir };
+    tile.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', tile.dataset.dir); } catch (_) {}
+  });
+  $('#folders').addEventListener('dragend', () => { clearDropMarks(); dragKey = null; });
 
   const sidebarBlankMenu = (e) => showMenu(e, [
     { label: t('新建文件夹…'), run: () => newFolder() },
