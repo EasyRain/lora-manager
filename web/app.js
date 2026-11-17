@@ -987,7 +987,9 @@ function paint(items) {
   const keepTop = scroller.scrollTop;
   const wasTop = keepTop <= 0;
 
-  $('#empty').hidden = items.length > 0 || !!$('#search').value.trim();
+  // 有子文件夹时不算空：提示层是绝对定位的，会压在文件夹磁贴上面
+  const hasFolders = dirsIn(curDir).length > 0;
+  $('#empty').hidden = items.length > 0 || hasFolders || !!$('#search').value.trim();
   const el = $('#cards');
   el.innerHTML = items.join('');
   layoutColumns(el);
