@@ -1240,9 +1240,11 @@ function clearShifts() {
 }
 
 /* 把落点之后的条目下移 height，腾出真实空隙 */
-function shiftAfter(cardEl, domPos, height, skipKey) {
+function shiftAfter(cardEl, domPos, height) {
+  // 落点及之后的条目整体下移；被拖的那条如果落在范围内也同样下移，
+  // 否则它会停在原地、被下移的卡片压住
   const els = [...cardEl.querySelectorAll(':scope > [data-child]')];
-  const want = els.slice(domPos).filter((el) => el.dataset.child !== skipKey);
+  const want = els.slice(domPos);
   // 复用已有元素，避免每帧重设 transition
   const same = want.length === shiftedEls.length && want.every((el, i) => el === shiftedEls[i]);
   if (same) {
@@ -1374,7 +1376,7 @@ function bindDrag() {
       if (info.noop) hideChildSlot();
       else {
         showChildSlot(info.cardEl, info.top, dragH);
-        shiftAfter(info.cardEl, info.domPos, dragH, dragKey.key);
+        shiftAfter(info.cardEl, info.domPos, dragH);
       }
       return;
     }
