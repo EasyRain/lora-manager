@@ -482,7 +482,7 @@ function matchTargets() {
 
 function setMatchLabel(txt) {
   const el = $('#match-label');
-  if (el) el.textContent = txt;
+  if (el && el.textContent !== txt) el.textContent = txt;
 }
 
 /* 空闲时按钮上直接显示还有多少"未匹配" */
@@ -494,7 +494,8 @@ function refreshMatchTitle(shift) {
   const n = matchTargets().length;
   const head = n ? t('给还没匹配过的 LoRA 查 Civitai 页面') + ' · ' + t('还剩 ') + n + t(' 个未匹配')
                  : t('全部匹配过了');
-  btn.title = head + '\n' + (shift ? t('Shift+点击：清空缓存，全部重新匹配') : t('Shift+点击 = 全部重新匹配'));
+  const next = head + '\n' + (shift ? t('Shift+点击：清空缓存，全部重新匹配') : t('Shift+点击 = 全部重新匹配'));
+  if (btn.title !== next) btn.title = next;   // 值没变就别重设，否则会把 tooltip 计时器重置掉
 }
 
 function updateMatchButton() {
