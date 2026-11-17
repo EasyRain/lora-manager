@@ -61,6 +61,24 @@
   </div>
 </div>
 
+<!-- 通用输入弹窗（替代浏览器 prompt） -->
+<div class="modal" id="modal-input" hidden>
+  <div class="sheet small">
+    <div class="sheet-head">
+      <span class="inp-title" id="inp-title"></span>
+      <button class="icon" id="inp-close">✕</button>
+    </div>
+    <div class="cd-body">
+      <label class="row"><input id="inp-text" class="cd-input" style="width:100%"></label>
+    </div>
+    <div class="ed-actions cd-actions">
+      <span class="grow"></span>
+      <button class="btn ghost" id="inp-cancel" data-i18n="取消">取消</button>
+      <button class="btn primary" id="inp-ok" data-i18n="确定">确定</button>
+    </div>
+  </div>
+</div>
+
 <!-- 小卡片编辑 -->
 <div class="modal" id="modal" hidden>
   <div class="sheet" role="dialog" aria-modal="true">

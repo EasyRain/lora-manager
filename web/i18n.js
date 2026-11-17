@@ -259,6 +259,9 @@ const I18N = {
     '正在匹配，再点一次可停止': 'Matching… click again to stop',
     'Shift+点击 = 全部重新匹配': 'Shift+click = re-match everything',
     'Shift+点击：清空缓存，全部重新匹配': 'Shift+click: clear cache and re-match all',
+    '确定': 'OK',
+    '取消': 'Cancel',
+    '例如：风格 Style': 'e.g. Style',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

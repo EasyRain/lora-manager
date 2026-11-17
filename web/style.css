@@ -550,3 +550,9 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
   padding:6px 14px; border-radius:999px; font-size:13px; font-weight:600;
   color:#fff; background:var(--accent2); box-shadow:0 4px 14px rgba(0,0,0,.18);
 }
+
+/* 通用输入弹窗 */
+.inp-title{flex:1 1 auto; min-width:0; font-size:14px; font-weight:600; color:var(--fg)}
+#modal-input .cd-body{padding:10px 12px}
+#modal-input .cd-input{width:100%; box-sizing:border-box}
+#modal-input .cd-actions{padding:0 12px 12px}

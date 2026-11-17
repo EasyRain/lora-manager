@@ -281,7 +281,7 @@ async function postJson(url, body) {
 async function renamePath(rel) {
   const isDir = tree.dirs.some((d) => d.rel === rel);
   const old = isDir ? nameOf(rel) : stemOf(rel);
-  const name = prompt(isDir ? t('重命名文件夹：') : t('重命名 LoRA 文件（不含扩展名）：'), old);
+  const name = await askText(isDir ? t('重命名文件夹：') : t('重命名 LoRA 文件（不含扩展名）：'), old);
   if (!name || !name.trim() || name.trim() === old) return;
   try {
     const d = await postJson('/api/rename', { from: rel, name: name.trim() });
@@ -323,7 +323,7 @@ async function revealPath(rel) {
 }
 
 async function newFolder() {
-  const name = prompt(t('新文件夹名称（会真的在磁盘上创建）：'));
+  const name = await askText(t('新文件夹名称（会真的在磁盘上创建）：'), '', t('例如：风格 Style'));
   if (!name || !name.trim()) return;
   const base = curDir === HIDDEN ? '' : curDir;
   const rel = (base ? base + '/' : '') + name.trim().replace(/[\\/:*?"<>|]/g, '_');
@@ -1468,6 +1468,39 @@ function bindDrag() {
 }
 
 
+/* ---------------- 通用输入弹窗（替代浏览器 prompt） ---------------- */
+let inputResolver = null;
+
+function askText(title, value, placeholder) {
+  return new Promise((resolve) => {
+    inputResolver = resolve;
+    $('#inp-title').textContent = title || '';
+    const inp = $('#inp-text');
+    inp.value = value == null ? '' : String(value);
+    inp.placeholder = placeholder || '';
+    $('#modal-input').hidden = false;
+    setTimeout(() => { inp.focus(); inp.select(); }, 30);
+  });
+}
+
+function closeInput(value) {
+  $('#modal-input').hidden = true;
+  const r = inputResolver;
+  inputResolver = null;
+  if (r) r(value);
+}
+
+function bindInputModal() {
+  $('#inp-ok').addEventListener('click', () => closeInput($('#inp-text').value));
+  $('#inp-cancel').addEventListener('click', () => closeInput(null));
+  $('#inp-close').addEventListener('click', () => closeInput(null));
+  $('#inp-text').addEventListener('keydown', (e) => {
+    if (e.isComposing) return;
+    if (e.key === 'Enter') { e.preventDefault(); closeInput($('#inp-text').value); }
+    if (e.key === 'Escape') { e.preventDefault(); closeInput(null); }
+  });
+}
+
 /* ---------------- 选择 / 复制 ---------------- */
 const pendingClick = new Map();   // key -> timer，用来区分单击和快速双击
 
@@ -2406,6 +2439,7 @@ function bind() {
 
   bindDrag();
   bindMoveDrop();
+  bindInputModal();
 
   $('#pv-close').addEventListener('click', closePreview);
   $('#pv-copy').addEventListener('click', () => {
@@ -2584,7 +2618,7 @@ function bind() {
 
   $('#btn-root').addEventListener('click', async () => {
     const cur = lib.root || tree.root;
-    const p = prompt('LoRA 根目录（改完会重新扫描）：', cur);
+    const p = await askText(t('LoRA 根目录（改完会重新扫描）：'), cur);
     if (!p || !p.trim() || p.trim() === cur) return;
     lib.root = p.trim();
     await save();
