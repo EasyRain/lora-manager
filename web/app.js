@@ -2570,7 +2570,10 @@ function bind() {
   };
   matchBtn.addEventListener('mouseenter', syncMatchHint);
   matchBtn.addEventListener('mousemove', syncMatchHint);
-  matchBtn.addEventListener('mouseleave', () => { if (!matchRun) updateMatchButton(); });
+  // 按着 Shift 离开时不要改文案：宽度一变，指针就在边缘反复进出，观感是"闪一下"
+  matchBtn.addEventListener('mouseleave', (e) => {
+    if (!matchRun && !e.shiftKey) updateMatchButton();
+  });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Shift' && !matchRun) { setMatchLabel(t('全部重新匹配')); refreshMatchTitle(true); }
   });
