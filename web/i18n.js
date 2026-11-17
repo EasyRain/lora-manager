@@ -256,6 +256,9 @@ const I18N = {
     '已切到 civitai.com': 'Switched to civitai.com',
     '以后新匹配的用 civitai.red（已有的不会自动改）': 'New matches will use civitai.red (existing ones unchanged)',
     '以后新匹配的用 civitai.com（已有的不会自动改）': 'New matches will use civitai.com (existing ones unchanged)',
+    '正在匹配，再点一次可停止': 'Matching… click again to stop',
+    'Shift+点击 = 全部重新匹配': 'Shift+click = re-match everything',
+    'Shift+点击：清空缓存，全部重新匹配': 'Shift+click: clear cache and re-match all',
     // ---- 主题提示 ----
     '主题：跟随系统': 'Theme: follow system',
     '主题：亮色': 'Theme: light',

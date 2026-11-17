@@ -486,15 +486,21 @@ function setMatchLabel(txt) {
 }
 
 /* 空闲时按钮上直接显示还有多少"未匹配" */
-function updateMatchButton() {
-  if (matchRun) return;
-  const n = matchTargets().length;
-  setMatchLabel(t('匹配 Civitai'));
+/* 匹配按钮的悬停提示（Shift 时换成"全部重匹配"） */
+function refreshMatchTitle(shift) {
   const btn = $('#btn-match');
   if (!btn) return;
-  btn.title = n
-    ? t('给还没匹配过的 LoRA 查 Civitai 页面') + ' · ' + t('还剩 ') + n + t(' 个未匹配')
-    : t('全部匹配过了');
+  if (matchRun) { btn.title = t('正在匹配，再点一次可停止'); return; }
+  const n = matchTargets().length;
+  const head = n ? t('给还没匹配过的 LoRA 查 Civitai 页面') + ' · ' + t('还剩 ') + n + t(' 个未匹配')
+                 : t('全部匹配过了');
+  btn.title = head + '\n' + (shift ? t('Shift+点击：清空缓存，全部重新匹配') : t('Shift+点击 = 全部重新匹配'));
+}
+
+function updateMatchButton() {
+  if (matchRun) return;
+  setMatchLabel(t('匹配 Civitai'));
+  refreshMatchTitle(false);
 }
 
 /* 清掉已有匹配结果，全部重新查（用于域名/信息变更后刷新） */
@@ -2490,6 +2496,7 @@ function bind() {
     $('#btn-lang').textContent = LANG === 'en' ? 'EN' : '中';
     applyTheme(themeMode());
     render();
+    refreshMatchTitle(false);        // 换了语言，tooltip 也要跟着换
   });
 
   if (mql) {
@@ -2559,12 +2566,13 @@ function bind() {
   const syncMatchHint = (e) => {
     if (matchRun) return;                      // 匹配中不要干扰进度文案
     setMatchLabel(e.shiftKey ? t('全部重新匹配') : t('匹配 Civitai'));
+    refreshMatchTitle(e.shiftKey);
   };
   matchBtn.addEventListener('mouseenter', syncMatchHint);
   matchBtn.addEventListener('mousemove', syncMatchHint);
   matchBtn.addEventListener('mouseleave', () => { if (!matchRun) updateMatchButton(); });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Shift' && !matchRun) setMatchLabel(t('全部重新匹配'));
+    if (e.key === 'Shift' && !matchRun) { setMatchLabel(t('全部重新匹配')); refreshMatchTitle(true); }
   });
   document.addEventListener('keyup', (e) => {
     if (e.key === 'Shift' && !matchRun) updateMatchButton();
